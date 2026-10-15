@@ -8,7 +8,7 @@ Since there are no ready-made `.deb` , `.rpm,` or `.AppImage files` in the upstr
 
 | Distribution | Version / Branch | COPR Chroot<br>Names (`x86_64`&<br>`aarch64`) |
 | :--- | :--- | :--- |
-| **Fedora** | 44, 45, Rawhide | `fedora-44-x86_64`, `fedora-45-x86_64`, `fedora-rawhide-x86_64` (ve `aarch64`) |
+| **Fedora** | 44, 45, Rawhide | `fedora-44-x86_64`, `fedora-45-x86_64`, `fedora-rawhide-x86_64` (and `aarch64`) |
 | **openSUSE Tumbleweed** | Rolling | `opensuse-tumbleweed-x86_64`, `opensuse-tumbleweed-aarch64` |
 | **openSUSE Leap** | 16.0 | `opensuse-leap-16.0-x86_64`, `opensuse-leap-16.0-aarch64` |
 
