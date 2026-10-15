@@ -1,0 +1,26 @@
+[Desktop Entry]
+Version=1.0
+Name=Cromite
+GenericName=Web Browser
+GenericName[tr]=Web Tarayıcısı
+Comment=Take back your browser - Chromium fork with ad blocking and privacy enhancements
+Comment[tr]=Reklam engelleme ve gizlilik geliştirmelerine sahip Chromium tabanlı tarayıcı
+Exec=/usr/bin/cromite %U
+Terminal=false
+Icon=cromite
+Type=Application
+Categories=Network;WebBrowser;
+MimeType=text/html;text/xml;application/xhtml+xml;x-scheme-handler/http;x-scheme-handler/https;
+StartupNotify=true
+StartupWMClass=cromite
+Actions=new-window;new-private-window;
+
+[Desktop Action new-window]
+Name=New Window
+Name[tr]=Yeni Pencere
+Exec=/usr/bin/cromite
+
+[Desktop Action new-private-window]
+Name=New Incognito Window
+Name[tr]=Yeni Gizli Pencere
+Exec=/usr/bin/cromite --incognito

@@ -1,0 +1,14 @@
+# RPM & COPR derleme çıktıları
+*.rpm
+*.src.rpm
+*.tar.gz
+*.zip
+BUILD/
+BUILDROOT/
+RPMS/
+SOURCES/
+SPECS/
+SRPMS/
+dist/
+results_*/
+.copr-build/

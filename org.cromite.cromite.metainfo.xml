@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>org.cromite.cromite</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <name>Cromite</name>
+  <summary>Chromium fork with built-in ad blocking and privacy enhancements</summary>
+  <summary xml:lang="tr">Yerleşik reklam engelleme ve gizlilik geliştirmelerine sahip Chromium çatalı</summary>
+  <description>
+    <p>
+      Cromite is an open-source browser based on Chromium and Bromite with built-in support
+      for ad blocking and enhanced privacy protections against tracking and fingerprinting.
+    </p>
+    <p xml:lang="tr">
+      Cromite; yerleşik reklam engelleme, izleme koruması ve parmak izi önleme yamaları
+      barındıran açık kaynaklı bir Chromium/Bromite çatalıdır.
+    </p>
+  </description>
+  <launchable type="desktop-id">cromite.desktop</launchable>
+  <url type="homepage">https://github.com/uazo/cromite</url>
+  <url type="bugtracker">https://github.com/universish/Cromite..Copr..CI/issues</url>
+  <developer id="org.cromite">
+    <name>uazo (Packaged by universish)</name>
+  </developer>
+  <provides>
+    <binary>cromite</binary>
+  </provides>
+  <content_rating type="oars-1.1" />
+</component>
