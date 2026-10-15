@@ -6,10 +6,11 @@ Since there are no ready-made `.deb` , `.rpm,` or `.AppImage files` in the upstr
 
 ### **Supported Distributions and Architectures** 
 
-|Distribution|Version / Branch|COPR Chroot<br>Names (`x86_64`&<br>`aarch64`)|
-|---|---|---|
-|**Fedora**|44, 45, Rawhide|`fedora-44-`<br>`x86_64`,<br>`fedora-45-`<br>`x86_64`,`fedora-`<br>`rawhide-x86_64`<br>(and`aarch64`)|
-|**openSUSE**<br>**Tumbleweed**<br>│**Architecture Note**:<br>(Available only for**`x86_64`and**<br>Linux on this page; the`arm64`<br>version is included in the<br>`cromite.spec`file as well|<br>Rolling<br>**`arm64/aarch64`) versions:**<br>Upstream provides x86_64-<br>based`chrome-l`packages;<br>upstream provides both`x86_`<br>and`aarch64`versions of<br>chrome|`opensuse-`<br>`tumbleweed-`<br>uaxz8o6/c_ro6m4i,`teoRpeele`<br>`nasseusse-`<br>`64`<br>`it nu 64m .b tl ae`<br>`r.w ge ze`a`d`rş`-`ivica`aa`<br>An`r`<br>d`c`<br>r`h`<br>oi`6`<br>d`4`<br>(for`.apk`).<br>so that it can be compiled|
+| Distribution | Version / Branch | COPR Chroot<br>Names (`x86_64`&<br>`aarch64`) |
+| :--- | :--- | :--- |
+| **Fedora** | 44, 45, Rawhide | `fedora-44-x86_64`, `fedora-45-x86_64`, `fedora-rawhide-x86_64` (ve `aarch64`) |
+| **openSUSE Tumbleweed** | Rolling | `opensuse-tumbleweed-x86_64`, `opensuse-tumbleweed-aarch64` |
+| **openSUSE Leap** | 16.0 | `opensuse-leap-16.0-x86_64`, `opensuse-leap-16.0-aarch64` |
 
 
 
