@@ -1,0 +1,184 @@
+name: Cromite Copr CI
+
+on:
+  schedule:
+    - cron: '0 3 * * *' # Her gün 03:00 UTC'de yeni sürüm kontrolü
+  workflow_dispatch:
+  push:
+    paths:
+      - 'specs/Cromite.spec'
+      - 'sources/**'
+      - '.github/workflows/Cromite_ci.yml'
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  check-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Disk Alanı Aç (Büyük Chromium Arşivi ve SRPM İçin)
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL || true
+          df -h
+
+      - name: Depoyu Klonla
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Upstream Sürümünü ve Release Numarasını Hesapla
+        id: check_release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # 1. Upstream uazo/cromite/releases üzerinden içinde chrome-lin64.tar.gz bulunan en güncel kararlı sürümü al
+          RELEASES_JSON=$(curl -sL -H "Accept: application/vnd.github+json" \
+            ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} \
+            "https://api.github.com/repos/uazo/cromite/releases?per_page=15")
+
+          LATEST_TAG=$(echo "$RELEASES_JSON" | jq -r '
+            [ .[] | select(.draft == false) | select(any(.assets[]; .name == "chrome-lin64.tar.gz")) ][0].tag_name // empty
+          ')
+
+          if [ -z "$LATEST_TAG" ] || [ "$LATEST_TAG" = "null" ]; then
+            echo "Upstream sürüm etiketi veya chrome-lin64.tar.gz alınamadı."
+            exit 1
+          fi
+
+          # Etiket formatı: v153.0.8010.37-11507ac1061b5ea227806f5e84db5a57df6ccf6a
+          # RPM Version alanı tire (-) kabul etmediği için yalnızca sürüm kısmını (153.0.8010.37) ayıkla
+          CLEAN_TAG="${LATEST_TAG#v}"
+          VERSION="${CLEAN_TAG%%-*}"
+          COMMIT_SHA="${CLEAN_TAG#*-}"
+
+          echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "commit_sha=$COMMIT_SHA" >> $GITHUB_OUTPUT
+
+          # 2. Copr API'den universish/Cromite.. deposundaki bu sürüm için en yüksek release numarasını bul
+          COPR_API="https://copr.fedorainfracloud.org/api_3/package?ownername=universish&projectname=Cromite..&packagename=cromite&with_all_builds=true"
+          LATEST_REL=$(curl -sL "$COPR_API" | jq -r --arg ver "$VERSION" '
+            [.builds[]? | select(.version != null and (.version | startswith($ver))) | .version | split("-")[1] | split(".")[0] | tonumber] | max // 0
+          ' 2>/dev/null || echo "0")
+
+          # 3. Aynı sürümse bir artır (153.0.8010.37-1 -> 2), yeni sürümse 1 yap
+          NEW_RELEASE=$((LATEST_REL + 1))
+          echo "release=$NEW_RELEASE" >> $GITHUB_OUTPUT
+
+          # 4. Derleme gerekli mi?
+          # Eğer push veya workflow_dispatch ile tetiklendiyse her zaman derle.
+          # Cron zamanlayıcıdaysa sadece yeni upstream sürüm geldiyse (LATEST_REL == 0 ise) derle.
+          if [ "${{ github.event_name }}" = "schedule" ] && [ "$LATEST_REL" -gt 0 ]; then
+            echo "build_needed=false" >> $GITHUB_OUTPUT
+            echo "Upstream sürümünde değişiklik yok ($VERSION zaten Copr üzerinde mevcut)."
+          else
+            echo "build_needed=true" >> $GITHUB_OUTPUT
+            echo "Derleme başlatılıyor: Sürüm $VERSION (Tag: $LATEST_TAG), Release $NEW_RELEASE"
+          fi
+
+      - name: Kaynakları İndir ve Hazırla
+        if: steps.check_release.outputs.build_needed == 'true'
+        run: |
+          TAG="${{ steps.check_release.outputs.latest_tag }}"
+          VERSION="${{ steps.check_release.outputs.version }}"
+          RELEASE="${{ steps.check_release.outputs.release }}"
+
+          mkdir -p rpmbuild/SOURCES
+          mkdir -p rpmbuild/SRPMS
+
+          echo "chrome-lin64.tar.gz arşivi indiriliyor (${TAG})..."
+          curl -fL --retry 3 \
+            "https://github.com/uazo/cromite/releases/download/${TAG}/chrome-lin64.tar.gz" \
+            -o rpmbuild/SOURCES/chrome-lin64.tar.gz
+
+          # Ek kaynakları (metainfo.xml vb.) kopyala
+          if [ -d sources ] && [ "$(ls -A sources)" ]; then
+            cp sources/* rpmbuild/SOURCES/
+          fi
+
+          # Spec dosyasındaki Version ve Release alanlarını dinamik olarak güncelle
+          sed -i -E "s/^(Version:[[:space:]]*).*/\1${VERSION}/" specs/Cromite.spec
+          sed -i -E "s/^(Release:[[:space:]]*).*/\1${RELEASE}%{?dist}/" specs/Cromite.spec
+
+      - name: Fedora Docker ile SRPM Üret
+        if: steps.check_release.outputs.build_needed == 'true'
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/workspace \
+            -w /workspace \
+            fedora:latest bash -c "
+              dnf install -y rpmdevtools rpm-build
+              rpmbuild -bs \
+                --define '_topdir /workspace/rpmbuild' \
+                --define '_sourcedir /workspace/rpmbuild/SOURCES' \
+                specs/Cromite.spec
+            "
+
+      - name: Copr CLI Kurulumu ve SRPM Gönderimi
+        if: steps.check_release.outputs.build_needed == 'true'
+        run: |
+          sudo apt-get update && sudo apt-get install -y python3-pip
+          pip install --break-system-packages copr-cli 2>/dev/null || pip install copr-cli
+
+          mkdir -p ~/.config
+          cat <<EOF > ~/.config/copr
+          [copr-cli]
+          copr_url = https://copr.fedorainfracloud.org
+          login = ${{ secrets.COPR_LOGIN }}
+          token = ${{ secrets.COPR_TOKEN }}
+          username = ${{ secrets.COPR_USERNAME }}
+          EOF
+
+          SRPM_PATH=$(ls rpmbuild/SRPMS/*.src.rpm)
+          echo "Yüklenen SRPM: $SRPM_PATH"
+          copr-cli build --nowait "universish/Cromite.." "$SRPM_PATH"
+
+      - name: Spec Değişikliğini ve Git Etiketini Kaydet
+        if: steps.check_release.outputs.build_needed == 'true'
+        run: |
+          VERSION="${{ steps.check_release.outputs.version }}"
+          RELEASE="${{ steps.check_release.outputs.release }}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add specs/Cromite.spec
+          git diff --staged --quiet || git commit -m "chore(release): build v${VERSION}-${RELEASE}"
+          git push origin main
+
+          # Sürüm etiketini güncelle
+          git tag -f "v${VERSION}"
+          git push origin "refs/tags/v${VERSION}" --force
+
+      - name: Webhook Güncelleme Bildirimi Gönder
+        if: steps.check_release.outputs.build_needed == 'true'
+        env:
+          NOTIFY_WEBHOOK_URL: ${{ secrets.NOTIFY_WEBHOOK_URL }}
+          COPR_WEBHOOK_URL: ${{ secrets.COPR_WEBHOOK_URL }}
+        run: |
+          VERSION="${{ steps.check_release.outputs.version }}"
+          RELEASE="${{ steps.check_release.outputs.release }}"
+          TAG="${{ steps.check_release.outputs.latest_tag }}"
+          TARBALL_URL="https://github.com/uazo/cromite/releases/download/${TAG}/chrome-lin64.tar.gz"
+          COPR_URL="https://copr.fedorainfracloud.org/coprs/universish/Cromite../"
+
+          if [ -n "$COPR_WEBHOOK_URL" ]; then
+            curl -fsSL -X POST "$COPR_WEBHOOK_URL" || true
+          fi
+
+          if [ -n "$NOTIFY_WEBHOOK_URL" ]; then
+            PAYLOAD=$(jq -n \
+              --arg ver "${VERSION}-${RELEASE}" \
+              --arg tag "$TAG" \
+              --arg tarball "$TARBALL_URL" \
+              --arg copr "$COPR_URL" \
+              '{
+                username: "Cromite Copr CI",
+                content: ("🚀 **Cromite v" + $ver + "** (`" + $tag + "`) için SRPM üretildi ve **universish/Cromite..** COPR deposuna gönderildi! Tarball: " + $tarball + " | COPR: " + $copr),
+                text: ("🚀 Cromite v" + $ver + " (" + $tag + ") COPR derlemesi başlatıldı: " + $copr)
+              }')
+            curl -fsSL -H "Content-Type: application/json" -X POST -d "$PAYLOAD" "$NOTIFY_WEBHOOK_URL" || true
+          fi
