@@ -1,0 +1,53 @@
+name: Upstream Tarball Kontrolü, COPR Tetikleyici ve Webhook Bildirici
+
+on:
+  schedule:
+    # Her 6 saatte bir https://github.com/uazo/cromite/releases sayfasını kontrol et
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      force_webhook:
+        description: 'Yeni sürüm olmasa bile COPR derlemesini ve bildirim webhookunu zorla tetikle'
+        required: false
+        default: false
+        type: boolean
+  repository_dispatch:
+    types: [upstream-release]
+
+permissions:
+  contents: write
+
+jobs:
+  check-and-update:
+    name: uazo/cromite chrome-lin64.tar.gz Sürüm Takibi
+    runs-on: ubuntu-latest
+    steps:
+      - name: Depoyu İndir (universish/Cromite..Copr..CI)
+        uses: actions/checkout@v4
+
+      - name: Upstream Sürümünü Kontrol Et ve cromite.spec Güncelle
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          chmod +x scripts/update_version.sh
+          ./scripts/update_version.sh cromite.spec
+
+      - name: Güncellenen cromite.spec Dosyasını Commit ve Push Et
+        if: steps.check.outputs.updated == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add cromite.spec
+          git commit -m "chore(rpm): cromite ${{ steps.check.outputs.version }} (${{ steps.check.outputs.short_commit }}) sürümüne güncellendi"
+          git tag -f "v${{ steps.check.outputs.version }}" -m "Cromite RPM v${{ steps.check.outputs.version }}"
+          git push origin main --follow-tags
+
+      - name: Fedora COPR (universish/Cromite..) ve Bildirim Webhooklarını Tetikle
+        if: steps.check.outputs.updated == 'true' || github.event.inputs.force_webhook == true
+        env:
+          COPR_WEBHOOK_URL: ${{ secrets.COPR_WEBHOOK_URL }}
+          NOTIFY_WEBHOOK_URL: ${{ secrets.NOTIFY_WEBHOOK_URL }}
+        run: |
+          chmod +x scripts/send_webhook.sh
+          ./scripts/send_webhook.sh "${{ steps.check.outputs.version }}" "${{ steps.check.outputs.commit }}"
