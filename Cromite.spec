@@ -17,7 +17,7 @@
 
 Name:           cromite
 Version:        153.0.8010.37
-Release:        2%{?dist}
+Release:        4%{?dist}
 Summary:        A Bromite fork with ad blocking and privacy enhancements
 
 License:        GPL-3.0-or-later
