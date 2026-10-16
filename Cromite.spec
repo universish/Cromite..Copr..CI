@@ -17,7 +17,7 @@
 
 Name:           cromite
 Version:        153.0.8010.37
-Release:        3%{?dist}
+Release:        2%{?dist}
 Summary:        A Bromite fork with ad blocking and privacy enhancements
 
 License:        GPL-3.0-or-later
@@ -156,6 +156,7 @@ declare -a DEFAULT_FLAGS=(
     "--disable-crash-reporter"
     "--disable-domain-reliability"
     "--disable-pings"
+    "--log-level=3"
 )
 
 if [ -f "$USER_FLAGS_FILE" ]; then
@@ -187,7 +188,7 @@ GenericName=Web Browser
 GenericName[tr]=Web Tarayıcı
 Comment=Fast and Private Web Browser
 Comment[tr]=İnternet'e gizlilik ve yüksek performansla erişin
-Exec=/usr/bin/cromite --ozone-platform-hint=auto --disable-features=Vulkan --enable-features=VaapiVideoDecodeLinuxGL,VaapiVideoEncoderLinuxGL,AcceleratedVideoDecodeLinuxGL,AcceleratedVideoDecodeLinuxZeroCopyGL,AcceleratedVideoEncoder,VaapiIgnoreDriverChecks,CanvasOopRasterization,ParallelDownloading,BackForwardCache --ignore-gpu-blocklist --enable-gpu-rasterization --enable-oop-rasterization --enable-zero-copy --no-default-browser-check --no-first-run --disable-breakpad --disable-crash-reporter --disable-domain-reliability --disable-pings %U
+Exec=/usr/bin/cromite --ozone-platform-hint=auto --disable-features=Vulkan --enable-features=VaapiVideoDecodeLinuxGL,VaapiVideoEncoderLinuxGL,AcceleratedVideoDecodeLinuxGL,AcceleratedVideoDecodeLinuxZeroCopyGL,AcceleratedVideoEncoder,VaapiIgnoreDriverChecks,CanvasOopRasterization,ParallelDownloading,BackForwardCache --ignore-gpu-blocklist --enable-gpu-rasterization --enable-oop-rasterization --enable-zero-copy --no-default-browser-check --no-first-run --disable-breakpad --disable-crash-reporter --disable-domain-reliability --disable-pings --log-level=3 %U
 TryExec=/usr/bin/cromite
 Icon=cromite
 Terminal=false
@@ -203,31 +204,31 @@ Actions=new-window;new-private-window;temp-profile;safe-mode;dark-mode;
 Name=New Window
 Name[tr]=Yeni Pencere
 Icon=cromite
-Exec=/usr/bin/cromite --ozone-platform-hint=auto --disable-features=Vulkan --enable-features=VaapiVideoDecodeLinuxGL,VaapiVideoEncoderLinuxGL,AcceleratedVideoDecodeLinuxGL,AcceleratedVideoDecodeLinuxZeroCopyGL,AcceleratedVideoEncoder,VaapiIgnoreDriverChecks,CanvasOopRasterization,ParallelDownloading,BackForwardCache --ignore-gpu-blocklist --enable-gpu-rasterization --enable-oop-rasterization --enable-zero-copy --no-default-browser-check --no-first-run --disable-breakpad --disable-crash-reporter --disable-domain-reliability --disable-pings %U
+Exec=/usr/bin/cromite --ozone-platform-hint=auto --disable-features=Vulkan --enable-features=VaapiVideoDecodeLinuxGL,VaapiVideoEncoderLinuxGL,AcceleratedVideoDecodeLinuxGL,AcceleratedVideoDecodeLinuxZeroCopyGL,AcceleratedVideoEncoder,VaapiIgnoreDriverChecks,CanvasOopRasterization,ParallelDownloading,BackForwardCache --ignore-gpu-blocklist --enable-gpu-rasterization --enable-oop-rasterization --enable-zero-copy --no-default-browser-check --no-first-run --disable-breakpad --disable-crash-reporter --disable-domain-reliability --disable-pings --log-level=3 %U
 
 [Desktop Action new-private-window]
 Name=New Incognito Window
 Name[tr]=Yeni Gizli Pencere
 Icon=cromite
-Exec=/usr/bin/cromite --ozone-platform-hint=auto --disable-features=Vulkan --enable-features=VaapiVideoDecodeLinuxGL,VaapiVideoEncoderLinuxGL,AcceleratedVideoDecodeLinuxGL,AcceleratedVideoDecodeLinuxZeroCopyGL,AcceleratedVideoEncoder,VaapiIgnoreDriverChecks,CanvasOopRasterization,ParallelDownloading,BackForwardCache --ignore-gpu-blocklist --enable-gpu-rasterization --enable-oop-rasterization --enable-zero-copy --no-default-browser-check --no-first-run --disable-breakpad --disable-crash-reporter --disable-domain-reliability --disable-pings --incognito %U
+Exec=/usr/bin/cromite --ozone-platform-hint=auto --disable-features=Vulkan --enable-features=VaapiVideoDecodeLinuxGL,VaapiVideoEncoderLinuxGL,AcceleratedVideoDecodeLinuxGL,AcceleratedVideoDecodeLinuxZeroCopyGL,AcceleratedVideoEncoder,VaapiIgnoreDriverChecks,CanvasOopRasterization,ParallelDownloading,BackForwardCache --ignore-gpu-blocklist --enable-gpu-rasterization --enable-oop-rasterization --enable-zero-copy --no-default-browser-check --no-first-run --disable-breakpad --disable-crash-reporter --disable-domain-reliability --disable-pings --log-level=3 --incognito %U
 
 [Desktop Action temp-profile]
 Name=Open New Window with a temporary profile
 Name[tr]=Geçici Profil ile Yeni Pencere Aç
 Icon=cromite
-Exec=/usr/bin/cromite --ozone-platform-hint=auto --disable-features=Vulkan --enable-features=VaapiVideoDecodeLinuxGL,VaapiVideoEncoderLinuxGL,AcceleratedVideoDecodeLinuxGL,AcceleratedVideoDecodeLinuxZeroCopyGL,AcceleratedVideoEncoder,VaapiIgnoreDriverChecks,CanvasOopRasterization,ParallelDownloading,BackForwardCache --ignore-gpu-blocklist --enable-gpu-rasterization --enable-oop-rasterization --enable-zero-copy --no-default-browser-check --no-first-run --disable-breakpad --disable-crash-reporter --disable-domain-reliability --disable-pings --temp-profile %U
+Exec=/usr/bin/cromite --ozone-platform-hint=auto --disable-features=Vulkan --enable-features=VaapiVideoDecodeLinuxGL,VaapiVideoEncoderLinuxGL,AcceleratedVideoDecodeLinuxGL,AcceleratedVideoDecodeLinuxZeroCopyGL,AcceleratedVideoEncoder,VaapiIgnoreDriverChecks,CanvasOopRasterization,ParallelDownloading,BackForwardCache --ignore-gpu-blocklist --enable-gpu-rasterization --enable-oop-rasterization --enable-zero-copy --no-default-browser-check --no-first-run --disable-breakpad --disable-crash-reporter --disable-domain-reliability --disable-pings --log-level=3 --temp-profile %U
 
 [Desktop Action safe-mode]
 Name=Open in Safe Mode
 Name[tr]=Güvenli Modda Aç
 Icon=cromite
-Exec=/usr/bin/cromite --ozone-platform-hint=auto --disable-features=Vulkan --enable-features=VaapiVideoDecodeLinuxGL,VaapiVideoEncoderLinuxGL,AcceleratedVideoDecodeLinuxGL,AcceleratedVideoDecodeLinuxZeroCopyGL,AcceleratedVideoEncoder,VaapiIgnoreDriverChecks,CanvasOopRasterization,ParallelDownloading,BackForwardCache --ignore-gpu-blocklist --enable-gpu-rasterization --enable-oop-rasterization --enable-zero-copy --no-default-browser-check --no-first-run --disable-breakpad --disable-crash-reporter --disable-domain-reliability --disable-pings --disable-extensions --safe-mode %U
+Exec=/usr/bin/cromite --ozone-platform-hint=auto --disable-features=Vulkan --enable-features=VaapiVideoDecodeLinuxGL,VaapiVideoEncoderLinuxGL,AcceleratedVideoDecodeLinuxGL,AcceleratedVideoDecodeLinuxZeroCopyGL,AcceleratedVideoEncoder,VaapiIgnoreDriverChecks,CanvasOopRasterization,ParallelDownloading,BackForwardCache --ignore-gpu-blocklist --enable-gpu-rasterization --enable-oop-rasterization --enable-zero-copy --no-default-browser-check --no-first-run --disable-breakpad --disable-crash-reporter --disable-domain-reliability --disable-pings --log-level=3 --disable-extensions --safe-mode %U
 
 [Desktop Action dark-mode]
 Name=Open in Dark Mode
 Name[tr]=Karanlık Modda Aç
 Icon=cromite
-Exec=/usr/bin/cromite --ozone-platform-hint=auto --disable-features=Vulkan --enable-features=VaapiVideoDecodeLinuxGL,VaapiVideoEncoderLinuxGL,AcceleratedVideoDecodeLinuxGL,AcceleratedVideoDecodeLinuxZeroCopyGL,AcceleratedVideoEncoder,VaapiIgnoreDriverChecks,CanvasOopRasterization,ParallelDownloading,BackForwardCache --ignore-gpu-blocklist --enable-gpu-rasterization --enable-oop-rasterization --enable-zero-copy --no-default-browser-check --no-first-run --disable-breakpad --disable-crash-reporter --disable-domain-reliability --disable-pings --force-dark-mode %U
+Exec=/usr/bin/cromite --ozone-platform-hint=auto --disable-features=Vulkan --enable-features=VaapiVideoDecodeLinuxGL,VaapiVideoEncoderLinuxGL,AcceleratedVideoDecodeLinuxGL,AcceleratedVideoDecodeLinuxZeroCopyGL,AcceleratedVideoEncoder,VaapiIgnoreDriverChecks,CanvasOopRasterization,ParallelDownloading,BackForwardCache --ignore-gpu-blocklist --enable-gpu-rasterization --enable-oop-rasterization --enable-zero-copy --no-default-browser-check --no-first-run --disable-breakpad --disable-crash-reporter --disable-domain-reliability --disable-pings --log-level=3 --force-dark-mode %U
 EOF
 
 cat << 'EOF' > %{buildroot}%{_datadir}/metainfo/org.cromite.cromite.metainfo.xml
