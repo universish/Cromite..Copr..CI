@@ -3,106 +3,10 @@ Version=1.0
 Type=Application
 Name=Cromite
 GenericName=Web Browser
-GenericName[ar]=متصفح الشبكة
-GenericName[bg]=Уеб браузър
-GenericName[bn]=ওয়েব ব্রাউজার
-GenericName[ca]=Navegador web
-GenericName[cs]=WWW prohlížeč
-GenericName[da]=Browser
-GenericName[de]=Web-Browser
-GenericName[el]=Περιηγητής ιστού
-GenericName[en_GB]=Web Browser
-GenericName[es]=Navegador web
-GenericName[et]=Veebibrauser
-GenericName[fi]=WWW-selain
-GenericName[fil]=Web Browser
-GenericName[fr]=Navigateur Web
-GenericName[gu]=વેબ બ્રાઉઝર
-GenericName[he]=דפדפן אינטרנט
-GenericName[hi]=वेब ब्राउज़र
-GenericName[hr]=Web preglednik
-GenericName[hu]=Webböngésző
-GenericName[id]=Browser Web
-GenericName[it]=Browser Web
-GenericName[ja]=ウェブブラウザ
-GenericName[kn]=ಜಾಲ ವೀಕ್ಷಕ
-GenericName[ko]=웹 브라우저
-GenericName[lt]=Žiniatinklio naršyklė
-GenericName[lv]=Tīmekļa pārlūks
-GenericName[ml]=വെബ് ബ്രൌസര്‍
-GenericName[mr]=वेब ब्राऊजर
-GenericName[nb]=Nettleser
-GenericName[nl]=Webbrowser
-GenericName[or]=ଓ୍ବେବ ବ୍ରାଉଜର
-GenericName[pl]=Przeglądarka WWW
-GenericName[pt]=Navegador Web
-GenericName[pt_BR]=Navegador da Internet
-GenericName[ro]=Navigator de Internet
-GenericName[ru]=Веб-браузер
-GenericName[sk]=WWW prehliadač
-GenericName[sl]=Spletni brskalnik
-GenericName[sr]=Интернет прегледник
-GenericName[sv]=Webbläsare
-GenericName[ta]=இணைய உலாவி
-GenericName[te]=వెబ్ బ్రౌజర్
-GenericName[th]=เว็บเบราว์เซอร์
 GenericName[tr]=Web Tarayıcı
-GenericName[uk]=Веб-браузер
-GenericName[vi]=Bộ duyệt Web
-GenericName[zh_CN]=网页浏览器
-GenericName[zh_HK]=網頁瀏覽器
-GenericName[zh_TW]=網頁瀏覽器
 Comment=Fast and Private Web Browser
-Comment[ar]=الدخول إلى الإنترنت
-Comment[bg]=Достъп до интернет
-Comment[bn]=ইন্টারনেটটি অ্যাক্সেস করুন
-Comment[ca]=Accedeix a Internet
-Comment[cs]=Přístup k internetu
-Comment[da]=Få adgang til internettet
-Comment[de]=Internetzugriff
-Comment[el]=Πρόσβαση στο Διαδίκτυο
-Comment[en_GB]=Access the Internet
-Comment[es]=Accede a Internet.
-Comment[et]=Pääs Internetti
-Comment[fi]=Käytä internetiä
-Comment[fil]=I-access ang Internet
-Comment[fr]=Accéder à Internet
-Comment[gu]=ઇંટરનેટ ઍક્સેસ કરો
-Comment[he]=גישה אל האינטרנט
-Comment[hi]=इंटरनेट तक पहुंच स्थापित करें
-Comment[hr]=Pristup Internetu
-Comment[hu]=Internetelérés
-Comment[id]=Akses Internet
-Comment[it]=Accesso a Internet
-Comment[ja]=インターネットにアクセス
-Comment[kn]=ಇಂಟರ್ನೆಟ್ ಅನ್ನು ಪ್ರವೇಶಿಸಿ
-Comment[ko]=인터넷 연결
-Comment[lt]=Interneto prieiga
-Comment[lv]=Piekļūt internetam
-Comment[ml]=ഇന്റര്‍‌നെറ്റ് ആക്‌സസ് ചെയ്യുക
-Comment[mr]=इंटरनेटमध्ये प्रवेश करा
-Comment[nb]=Gå til Internett
-Comment[nl]=Verbinding maken met internet
-Comment[or]=ଇଣ୍ଟର୍ନେଟ୍ ପ୍ରବେଶ କରନ୍ତୁ
-Comment[pl]=Skorzystaj z internetu
-Comment[pt]=Aceder à Internet
-Comment[pt_BR]=Acessar a internet
-Comment[ro]=Accesaţi Internetul
-Comment[ru]=Доступ в Интернет
-Comment[sk]=Prístup do siete Internet
-Comment[sl]=Dostop do interneta
-Comment[sr]=Приступите Интернету
-Comment[sv]=Gå ut på Internet
-Comment[ta]=இணையத்தை அணுகுதல்
-Comment[te]=ఇంటర్నెట్‌ను ఆక్సెస్ చెయ్యండి
-Comment[th]=เข้าถึงอินเทอร์เน็ต
 Comment[tr]=İnternet'e gizlilik ve yüksek performansla erişin
-Comment[uk]=Доступ до Інтернету
-Comment[vi]=Truy cập Internet
-Comment[zh_CN]=访问互联网
-Comment[zh_HK]=連線到網際網路
-Comment[zh_TW]=連線到網際網路
-Exec=env NVD_BACKEND=direct __NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia /usr/bin/cromite --ozone-platform=x11 --enable-features=VaapiVideoDecodeLinuxGL,VaapiVideoEncoderLinuxGL,AcceleratedVideoDecodeLinuxGL,AcceleratedVideoDecodeLinuxZeroCopyGL,AcceleratedVideoEncoder,VaapiIgnoreDriverChecks,CanvasOopRasterization,ParallelDownloading,BackForwardCache --disable-features=Vulkan --ignore-gpu-blocklist --enable-gpu-rasterization --enable-oop-rasterization --enable-zero-copy --use-gl=angle --use-angle=gl --no-default-browser-check --no-first-run --disable-breakpad --disable-crash-reporter --disable-domain-reliability --disable-pings %U
+Exec=/usr/bin/cromite --ozone-platform-hint=auto --disable-features=Vulkan --enable-features=VaapiVideoDecodeLinuxGL,VaapiVideoEncoderLinuxGL,AcceleratedVideoDecodeLinuxGL,AcceleratedVideoDecodeLinuxZeroCopyGL,AcceleratedVideoEncoder,VaapiIgnoreDriverChecks,CanvasOopRasterization,ParallelDownloading,BackForwardCache --ignore-gpu-blocklist --enable-gpu-rasterization --enable-oop-rasterization --enable-zero-copy --no-default-browser-check --no-first-run --disable-breakpad --disable-crash-reporter --disable-domain-reliability --disable-pings %U
 TryExec=/usr/bin/cromite
 Icon=cromite
 Terminal=false
@@ -118,28 +22,28 @@ Actions=new-window;new-private-window;temp-profile;safe-mode;dark-mode;
 Name=New Window
 Name[tr]=Yeni Pencere
 Icon=cromite
-Exec=env NVD_BACKEND=direct __NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia /usr/bin/cromite --ozone-platform=x11 --enable-features=VaapiVideoDecodeLinuxGL,VaapiVideoEncoderLinuxGL,AcceleratedVideoDecodeLinuxGL,AcceleratedVideoDecodeLinuxZeroCopyGL,AcceleratedVideoEncoder,VaapiIgnoreDriverChecks,CanvasOopRasterization,ParallelDownloading,BackForwardCache --disable-features=Vulkan --ignore-gpu-blocklist --enable-gpu-rasterization --enable-oop-rasterization --enable-zero-copy --use-gl=angle --use-angle=gl --no-default-browser-check --no-first-run --disable-breakpad --disable-crash-reporter --disable-domain-reliability --disable-pings %U
+Exec=/usr/bin/cromite --ozone-platform-hint=auto --disable-features=Vulkan --enable-features=VaapiVideoDecodeLinuxGL,VaapiVideoEncoderLinuxGL,AcceleratedVideoDecodeLinuxGL,AcceleratedVideoDecodeLinuxZeroCopyGL,AcceleratedVideoEncoder,VaapiIgnoreDriverChecks,CanvasOopRasterization,ParallelDownloading,BackForwardCache --ignore-gpu-blocklist --enable-gpu-rasterization --enable-oop-rasterization --enable-zero-copy --no-default-browser-check --no-first-run --disable-breakpad --disable-crash-reporter --disable-domain-reliability --disable-pings %U
 
 [Desktop Action new-private-window]
 Name=New Incognito Window
 Name[tr]=Yeni Gizli Pencere
 Icon=cromite
-Exec=env NVD_BACKEND=direct __NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia /usr/bin/cromite --ozone-platform=x11 --enable-features=VaapiVideoDecodeLinuxGL,VaapiVideoEncoderLinuxGL,AcceleratedVideoDecodeLinuxGL,AcceleratedVideoDecodeLinuxZeroCopyGL,AcceleratedVideoEncoder,VaapiIgnoreDriverChecks,CanvasOopRasterization,ParallelDownloading,BackForwardCache --disable-features=Vulkan --ignore-gpu-blocklist --enable-gpu-rasterization --enable-oop-rasterization --enable-zero-copy --use-gl=angle --use-angle=gl --no-default-browser-check --no-first-run --disable-breakpad --disable-crash-reporter --disable-domain-reliability --disable-pings --incognito %U
+Exec=/usr/bin/cromite --ozone-platform-hint=auto --disable-features=Vulkan --enable-features=VaapiVideoDecodeLinuxGL,VaapiVideoEncoderLinuxGL,AcceleratedVideoDecodeLinuxGL,AcceleratedVideoDecodeLinuxZeroCopyGL,AcceleratedVideoEncoder,VaapiIgnoreDriverChecks,CanvasOopRasterization,ParallelDownloading,BackForwardCache --ignore-gpu-blocklist --enable-gpu-rasterization --enable-oop-rasterization --enable-zero-copy --no-default-browser-check --no-first-run --disable-breakpad --disable-crash-reporter --disable-domain-reliability --disable-pings --incognito %U
 
 [Desktop Action temp-profile]
 Name=Open New Window with a temporary profile
 Name[tr]=Geçici Profil ile Yeni Pencere Aç
 Icon=cromite
-Exec=env NVD_BACKEND=direct __NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia /usr/bin/cromite --ozone-platform=x11 --enable-features=VaapiVideoDecodeLinuxGL,VaapiVideoEncoderLinuxGL,AcceleratedVideoDecodeLinuxGL,AcceleratedVideoDecodeLinuxZeroCopyGL,AcceleratedVideoEncoder,VaapiIgnoreDriverChecks,CanvasOopRasterization,ParallelDownloading,BackForwardCache --disable-features=Vulkan --ignore-gpu-blocklist --enable-gpu-rasterization --enable-oop-rasterization --enable-zero-copy --use-gl=angle --use-angle=gl --no-default-browser-check --no-first-run --disable-breakpad --disable-crash-reporter --disable-domain-reliability --disable-pings --temp-profile %U
+Exec=/usr/bin/cromite --ozone-platform-hint=auto --disable-features=Vulkan --enable-features=VaapiVideoDecodeLinuxGL,VaapiVideoEncoderLinuxGL,AcceleratedVideoDecodeLinuxGL,AcceleratedVideoDecodeLinuxZeroCopyGL,AcceleratedVideoEncoder,VaapiIgnoreDriverChecks,CanvasOopRasterization,ParallelDownloading,BackForwardCache --ignore-gpu-blocklist --enable-gpu-rasterization --enable-oop-rasterization --enable-zero-copy --no-default-browser-check --no-first-run --disable-breakpad --disable-crash-reporter --disable-domain-reliability --disable-pings --temp-profile %U
 
 [Desktop Action safe-mode]
 Name=Open in Safe Mode
 Name[tr]=Güvenli Modda Aç
 Icon=cromite
-Exec=env NVD_BACKEND=direct __NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia /usr/bin/cromite --ozone-platform=x11 --enable-features=VaapiVideoDecodeLinuxGL,VaapiVideoEncoderLinuxGL,AcceleratedVideoDecodeLinuxGL,AcceleratedVideoDecodeLinuxZeroCopyGL,AcceleratedVideoEncoder,VaapiIgnoreDriverChecks,CanvasOopRasterization,ParallelDownloading,BackForwardCache --disable-features=Vulkan --ignore-gpu-blocklist --enable-gpu-rasterization --enable-oop-rasterization --enable-zero-copy --use-gl=angle --use-angle=gl --no-default-browser-check --no-first-run --disable-breakpad --disable-crash-reporter --disable-domain-reliability --disable-pings --disable-extensions --safe-mode %U
+Exec=/usr/bin/cromite --ozone-platform-hint=auto --disable-features=Vulkan --enable-features=VaapiVideoDecodeLinuxGL,VaapiVideoEncoderLinuxGL,AcceleratedVideoDecodeLinuxGL,AcceleratedVideoDecodeLinuxZeroCopyGL,AcceleratedVideoEncoder,VaapiIgnoreDriverChecks,CanvasOopRasterization,ParallelDownloading,BackForwardCache --ignore-gpu-blocklist --enable-gpu-rasterization --enable-oop-rasterization --enable-zero-copy --no-default-browser-check --no-first-run --disable-breakpad --disable-crash-reporter --disable-domain-reliability --disable-pings --disable-extensions --safe-mode %U
 
 [Desktop Action dark-mode]
 Name=Open in Dark Mode
 Name[tr]=Karanlık Modda Aç
 Icon=cromite
-Exec=env NVD_BACKEND=direct __NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia /usr/bin/cromite --ozone-platform=x11 --enable-features=VaapiVideoDecodeLinuxGL,VaapiVideoEncoderLinuxGL,AcceleratedVideoDecodeLinuxGL,AcceleratedVideoDecodeLinuxZeroCopyGL,AcceleratedVideoEncoder,VaapiIgnoreDriverChecks,CanvasOopRasterization,ParallelDownloading,BackForwardCache --disable-features=Vulkan --ignore-gpu-blocklist --enable-gpu-rasterization --enable-oop-rasterization --enable-zero-copy --use-gl=angle --use-angle=gl --no-default-browser-check --no-first-run --disable-breakpad --disable-crash-reporter --disable-domain-reliability --disable-pings --force-dark-mode %U
+Exec=/usr/bin/cromite --ozone-platform-hint=auto --disable-features=Vulkan --enable-features=VaapiVideoDecodeLinuxGL,VaapiVideoEncoderLinuxGL,AcceleratedVideoDecodeLinuxGL,AcceleratedVideoDecodeLinuxZeroCopyGL,AcceleratedVideoEncoder,VaapiIgnoreDriverChecks,CanvasOopRasterization,ParallelDownloading,BackForwardCache --ignore-gpu-blocklist --enable-gpu-rasterization --enable-oop-rasterization --enable-zero-copy --no-default-browser-check --no-first-run --disable-breakpad --disable-crash-reporter --disable-domain-reliability --disable-pings --force-dark-mode %U

@@ -15,13 +15,9 @@
 %global __provides_exclude_from ^/opt/cromite/.*$
 %global __requires_exclude_from ^/opt/cromite/.*$
 
-# Dışarıdan makro gelmezse kullanılacak yedek varsayılanlar
-%{!?pkg_version: %global pkg_version 153.0.8010.37}
-%{!?pkg_release: %global pkg_release 1}
-
 Name:           cromite
 Version:        153.0.8010.37
-Release:        1%{?dist}
+Release:        2%{?dist}
 Summary:        A Bromite fork with ad blocking and privacy enhancements
 
 License:        GPL-3.0-or-later
@@ -41,7 +37,6 @@ BuildRequires:  libappstream-glib
 BuildRequires:  appstream-glib
 %endif
 
-# Grafik, ses, SSL/NSS sertifika ve masaüstü bağımlılıkları (Fedora 44/45/Rawhide & openSUSE Tumbleweed/Leap 16)
 Requires:       ca-certificates
 Requires:       hicolor-icon-theme
 Requires:       xdg-utils
@@ -90,7 +85,7 @@ anti-fingerprinting defenses, and hardware-accelerated VA-API video playback.
 %setup -q -c -T
 tar -xzf %{SOURCE0} || :
 
-# Arşiv içeriği tek klasöre (chrome-lin/) açıldıysa kök dizine taşı (Tauon.spec deseni)
+# Arşiv içeriği tek klasöre (chrome-lin/) açıldıysa kök dizine taşı
 if [ $(ls -1A | wc -l) -eq 1 ] && [ -d * ]; then
     SUBDIR=$(ls -1A)
     mv "$SUBDIR"/* . 2>/dev/null || true
@@ -113,7 +108,7 @@ mkdir -p %{buildroot}%{_datadir}/icons/hicolor/48x48/apps
 # Dosyaları /opt/cromite altına yerleştir
 cp -a ./* %{buildroot}/opt/cromite/
 
-# Uyumsuz gömülü libvulkan.so.1 ikilisini silip sistemin yerel Vulkan kütüphanesine bağla (Tauon.spec deseni)
+# Uyumsuz gömülü libvulkan.so.1 ikilisini silip sistemin yerel Vulkan kütüphanesine bağla
 rm -f %{buildroot}/opt/cromite/libvulkan.so.1
 ln -sf %{_libdir}/libvulkan.so.1 %{buildroot}/opt/cromite/libvulkan.so.1
 
@@ -124,12 +119,7 @@ for bin in chrome chrome_crashpad_handler chrome-wrapper chrome_sandbox; do
     fi
 done
 
-# /usr/bin/cromite başlatıcı betiği:
-# 1. ~/.config/chromium ile çakışmayı önlemek için izole ~/.config/cromite profil dizini kullanır.
-# 2. Terminalden 'cromite' yazıldığında da --ozone-platform=x11, ANGLE, VA-API ve Vulkan kapatma
-#    bayraklarını otomatik uygular ('--ozone-platform=wayland is not compatible with Vulkan' hatasını çözer).
-# 3. --disable-background-networking KULLANMAZ (AIA ara SSL sertifikası indirmesini [cert_issuer_source_aia.cc]
-#    engelleyip net_error -202 SSL hatasına yol açmasını önler).
+# /usr/bin/cromite başlatıcı betiği (Saf Wayland ve X11 otomatik algılama + izole ~/.config/cromite profili)
 cat << 'EOF' > %{buildroot}%{_bindir}/cromite
 #!/usr/bin/env bash
 set -euo pipefail
@@ -142,24 +132,24 @@ export CHROME_WRAPPER="$(readlink -f "$0")"
 export CHROME_DESKTOP="cromite.desktop"
 export LD_LIBRARY_PATH="${CROMITE_DIR}:/usr/lib64${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 
-# NVIDIA GPU varsa donanımsal hızlandırma ortam değişkenlerini otomatik tanımla
 if [ -d /proc/driver/nvidia ] || [ -e /dev/nvidiactl ]; then
     export NVD_BACKEND="${NVD_BACKEND:-direct}"
     export __NV_PRIME_RENDER_OFFLOAD="${__NV_PRIME_RENDER_OFFLOAD:-1}"
-    export __GLX_VENDOR_LIBRARY_NAME="${__GLX_VENDOR_LIBRARY_NAME:-nvidia}"
+    # Yalnızca X11 oturumunda GLX vendor zorla (saf Wayland'de EGL kullanılır)
+    if [ -z "${WAYLAND_DISPLAY:-}" ] && [ -n "${DISPLAY:-}" ]; then
+        export __GLX_VENDOR_LIBRARY_NAME="${__GLX_VENDOR_LIBRARY_NAME:-nvidia}"
+    fi
 fi
 
 declare -a DEFAULT_FLAGS=(
     "--user-data-dir=${CROMITE_USER_DATA_DIR}"
-    "--ozone-platform=x11"
-    "--enable-features=VaapiVideoDecodeLinuxGL,VaapiVideoEncoderLinuxGL,AcceleratedVideoDecodeLinuxGL,AcceleratedVideoDecodeLinuxZeroCopyGL,AcceleratedVideoEncoder,VaapiIgnoreDriverChecks,CanvasOopRasterization,ParallelDownloading,BackForwardCache"
+    "--ozone-platform-hint=auto"
     "--disable-features=Vulkan"
+    "--enable-features=VaapiVideoDecodeLinuxGL,VaapiVideoEncoderLinuxGL,AcceleratedVideoDecodeLinuxGL,AcceleratedVideoDecodeLinuxZeroCopyGL,AcceleratedVideoEncoder,VaapiIgnoreDriverChecks,CanvasOopRasterization,ParallelDownloading,BackForwardCache"
     "--ignore-gpu-blocklist"
     "--enable-gpu-rasterization"
     "--enable-oop-rasterization"
     "--enable-zero-copy"
-    "--use-gl=angle"
-    "--use-angle=gl"
     "--no-default-browser-check"
     "--no-first-run"
     "--disable-breakpad"
@@ -168,7 +158,6 @@ declare -a DEFAULT_FLAGS=(
     "--disable-pings"
 )
 
-# Kullanıcı ~/.config/cromite-flags.conf tanımladıysa ekle
 if [ -f "$USER_FLAGS_FILE" ]; then
     while IFS= read -r line || [ -n "$line" ]; do
         case "$line" in
@@ -187,116 +176,18 @@ exec "${CROMITE_DIR}/chrome" "${DEFAULT_FLAGS[@]}" "$@"
 EOF
 chmod 755 %{buildroot}%{_bindir}/cromite
 
-# Alternatif komut adı için sembolik bağ
 ln -sf cromite %{buildroot}%{_bindir}/cromite-browser
 
-# Masaüstü kısayolu (cromite.desktop)
 cat << 'EOF' > %{buildroot}%{_datadir}/applications/%{name}.desktop
 [Desktop Entry]
 Version=1.0
 Type=Application
 Name=Cromite
 GenericName=Web Browser
-GenericName[ar]=متصفح الشبكة
-GenericName[bg]=Уеб браузър
-GenericName[bn]=ওয়েব ব্রাউজার
-GenericName[ca]=Navegador web
-GenericName[cs]=WWW prohlížeč
-GenericName[da]=Browser
-GenericName[de]=Web-Browser
-GenericName[el]=Περιηγητής ιστού
-GenericName[en_GB]=Web Browser
-GenericName[es]=Navegador web
-GenericName[et]=Veebibrauser
-GenericName[fi]=WWW-selain
-GenericName[fil]=Web Browser
-GenericName[fr]=Navigateur Web
-GenericName[gu]=વેબ બ્રાઉઝર
-GenericName[he]=דפדפן אינטרנט
-GenericName[hi]=वेब ब्राउज़र
-GenericName[hr]=Web preglednik
-GenericName[hu]=Webböngésző
-GenericName[id]=Browser Web
-GenericName[it]=Browser Web
-GenericName[ja]=ウェブブラウザ
-GenericName[kn]=ಜಾಲ ವೀಕ್ಷಕ
-GenericName[ko]=웹 브라우저
-GenericName[lt]=Žiniatinklio naršyklė
-GenericName[lv]=Tīmekļa pārlūks
-GenericName[ml]=വെബ് ബ്രൌസര്‍
-GenericName[mr]=वेब ब्राऊजर
-GenericName[nb]=Nettleser
-GenericName[nl]=Webbrowser
-GenericName[or]=ଓ୍ବେବ ବ୍ରାଉଜର
-GenericName[pl]=Przeglądarka WWW
-GenericName[pt]=Navegador Web
-GenericName[pt_BR]=Navegador da Internet
-GenericName[ro]=Navigator de Internet
-GenericName[ru]=Веб-браузер
-GenericName[sk]=WWW prehliadač
-GenericName[sl]=Spletni brskalnik
-GenericName[sr]=Интернет прегледник
-GenericName[sv]=Webbläsare
-GenericName[ta]=இணைய உலாவி
-GenericName[te]=వెబ్ బ్రౌజర్
-GenericName[th]=เว็บเบราว์เซอร์
 GenericName[tr]=Web Tarayıcı
-GenericName[uk]=Веб-браузер
-GenericName[vi]=Bộ duyệt Web
-GenericName[zh_CN]=网页浏览器
-GenericName[zh_HK]=網頁瀏覽器
-GenericName[zh_TW]=網頁瀏覽器
 Comment=Fast and Private Web Browser
-Comment[ar]=الدخول إلى الإنترنت
-Comment[bg]=Достъп до интернет
-Comment[bn]=ইন্টারনেটটি অ্যাক্সেস করুন
-Comment[ca]=Accedeix a Internet
-Comment[cs]=Přístup k internetu
-Comment[da]=Få adgang til internettet
-Comment[de]=Internetzugriff
-Comment[el]=Πρόσβαση στο Διαδίκτυο
-Comment[en_GB]=Access the Internet
-Comment[es]=Accede a Internet.
-Comment[et]=Pääs Internetti
-Comment[fi]=Käytä internetiä
-Comment[fil]=I-access ang Internet
-Comment[fr]=Accéder à Internet
-Comment[gu]=ઇંટરનેટ ઍક્સેસ કરો
-Comment[he]=גישה אל האינטרנט
-Comment[hi]=इंटरनेट तक पहुंच स्थापित करें
-Comment[hr]=Pristup Internetu
-Comment[hu]=Internetelérés
-Comment[id]=Akses Internet
-Comment[it]=Accesso a Internet
-Comment[ja]=インターネットにアクセス
-Comment[kn]=ಇಂಟರ್ನೆಟ್ ಅನ್ನು ಪ್ರವೇಶಿಸಿ
-Comment[ko]=인터넷 연결
-Comment[lt]=Interneto prieiga
-Comment[lv]=Piekļūt internetam
-Comment[ml]=ഇന്റര്‍‌നെറ്റ് ആക്‌സസ് ചെയ്യുക
-Comment[mr]=इंटरनेटमध्ये प्रवेश करा
-Comment[nb]=Gå til Internett
-Comment[nl]=Verbinding maken met internet
-Comment[or]=ଇଣ୍ଟର୍ନେଟ୍ ପ୍ରବେଶ କରନ୍ତୁ
-Comment[pl]=Skorzystaj z internetu
-Comment[pt]=Aceder à Internet
-Comment[pt_BR]=Acessar a internet
-Comment[ro]=Accesaţi Internetul
-Comment[ru]=Доступ в Интернет
-Comment[sk]=Prístup do siete Internet
-Comment[sl]=Dostop do interneta
-Comment[sr]=Приступите Интернету
-Comment[sv]=Gå ut på Internet
-Comment[ta]=இணையத்தை அணுகுதல்
-Comment[te]=ఇంటర్నెట్‌ను ఆక్సెస్ చెయ్యండి
-Comment[th]=เข้าถึงอินเทอร์เน็ต
 Comment[tr]=İnternet'e gizlilik ve yüksek performansla erişin
-Comment[uk]=Доступ до Інтернету
-Comment[vi]=Truy cập Internet
-Comment[zh_CN]=访问互联网
-Comment[zh_HK]=連線到網際網路
-Comment[zh_TW]=連線到網際網路
-Exec=env NVD_BACKEND=direct __NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia /usr/bin/cromite --ozone-platform=x11 --enable-features=VaapiVideoDecodeLinuxGL,VaapiVideoEncoderLinuxGL,AcceleratedVideoDecodeLinuxGL,AcceleratedVideoDecodeLinuxZeroCopyGL,AcceleratedVideoEncoder,VaapiIgnoreDriverChecks,CanvasOopRasterization,ParallelDownloading,BackForwardCache --disable-features=Vulkan --ignore-gpu-blocklist --enable-gpu-rasterization --enable-oop-rasterization --enable-zero-copy --use-gl=angle --use-angle=gl --no-default-browser-check --no-first-run --disable-breakpad --disable-crash-reporter --disable-domain-reliability --disable-pings %U
+Exec=/usr/bin/cromite --ozone-platform-hint=auto --disable-features=Vulkan --enable-features=VaapiVideoDecodeLinuxGL,VaapiVideoEncoderLinuxGL,AcceleratedVideoDecodeLinuxGL,AcceleratedVideoDecodeLinuxZeroCopyGL,AcceleratedVideoEncoder,VaapiIgnoreDriverChecks,CanvasOopRasterization,ParallelDownloading,BackForwardCache --ignore-gpu-blocklist --enable-gpu-rasterization --enable-oop-rasterization --enable-zero-copy --no-default-browser-check --no-first-run --disable-breakpad --disable-crash-reporter --disable-domain-reliability --disable-pings %U
 TryExec=/usr/bin/cromite
 Icon=cromite
 Terminal=false
@@ -312,34 +203,33 @@ Actions=new-window;new-private-window;temp-profile;safe-mode;dark-mode;
 Name=New Window
 Name[tr]=Yeni Pencere
 Icon=cromite
-Exec=env NVD_BACKEND=direct __NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia /usr/bin/cromite --ozone-platform=x11 --enable-features=VaapiVideoDecodeLinuxGL,VaapiVideoEncoderLinuxGL,AcceleratedVideoDecodeLinuxGL,AcceleratedVideoDecodeLinuxZeroCopyGL,AcceleratedVideoEncoder,VaapiIgnoreDriverChecks,CanvasOopRasterization,ParallelDownloading,BackForwardCache --disable-features=Vulkan --ignore-gpu-blocklist --enable-gpu-rasterization --enable-oop-rasterization --enable-zero-copy --use-gl=angle --use-angle=gl --no-default-browser-check --no-first-run --disable-breakpad --disable-crash-reporter --disable-domain-reliability --disable-pings %U
+Exec=/usr/bin/cromite --ozone-platform-hint=auto --disable-features=Vulkan --enable-features=VaapiVideoDecodeLinuxGL,VaapiVideoEncoderLinuxGL,AcceleratedVideoDecodeLinuxGL,AcceleratedVideoDecodeLinuxZeroCopyGL,AcceleratedVideoEncoder,VaapiIgnoreDriverChecks,CanvasOopRasterization,ParallelDownloading,BackForwardCache --ignore-gpu-blocklist --enable-gpu-rasterization --enable-oop-rasterization --enable-zero-copy --no-default-browser-check --no-first-run --disable-breakpad --disable-crash-reporter --disable-domain-reliability --disable-pings %U
 
 [Desktop Action new-private-window]
 Name=New Incognito Window
 Name[tr]=Yeni Gizli Pencere
 Icon=cromite
-Exec=env NVD_BACKEND=direct __NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia /usr/bin/cromite --ozone-platform=x11 --enable-features=VaapiVideoDecodeLinuxGL,VaapiVideoEncoderLinuxGL,AcceleratedVideoDecodeLinuxGL,AcceleratedVideoDecodeLinuxZeroCopyGL,AcceleratedVideoEncoder,VaapiIgnoreDriverChecks,CanvasOopRasterization,ParallelDownloading,BackForwardCache --disable-features=Vulkan --ignore-gpu-blocklist --enable-gpu-rasterization --enable-oop-rasterization --enable-zero-copy --use-gl=angle --use-angle=gl --no-default-browser-check --no-first-run --disable-breakpad --disable-crash-reporter --disable-domain-reliability --disable-pings --incognito %U
+Exec=/usr/bin/cromite --ozone-platform-hint=auto --disable-features=Vulkan --enable-features=VaapiVideoDecodeLinuxGL,VaapiVideoEncoderLinuxGL,AcceleratedVideoDecodeLinuxGL,AcceleratedVideoDecodeLinuxZeroCopyGL,AcceleratedVideoEncoder,VaapiIgnoreDriverChecks,CanvasOopRasterization,ParallelDownloading,BackForwardCache --ignore-gpu-blocklist --enable-gpu-rasterization --enable-oop-rasterization --enable-zero-copy --no-default-browser-check --no-first-run --disable-breakpad --disable-crash-reporter --disable-domain-reliability --disable-pings --incognito %U
 
 [Desktop Action temp-profile]
 Name=Open New Window with a temporary profile
 Name[tr]=Geçici Profil ile Yeni Pencere Aç
 Icon=cromite
-Exec=env NVD_BACKEND=direct __NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia /usr/bin/cromite --ozone-platform=x11 --enable-features=VaapiVideoDecodeLinuxGL,VaapiVideoEncoderLinuxGL,AcceleratedVideoDecodeLinuxGL,AcceleratedVideoDecodeLinuxZeroCopyGL,AcceleratedVideoEncoder,VaapiIgnoreDriverChecks,CanvasOopRasterization,ParallelDownloading,BackForwardCache --disable-features=Vulkan --ignore-gpu-blocklist --enable-gpu-rasterization --enable-oop-rasterization --enable-zero-copy --use-gl=angle --use-angle=gl --no-default-browser-check --no-first-run --disable-breakpad --disable-crash-reporter --disable-domain-reliability --disable-pings --temp-profile %U
+Exec=/usr/bin/cromite --ozone-platform-hint=auto --disable-features=Vulkan --enable-features=VaapiVideoDecodeLinuxGL,VaapiVideoEncoderLinuxGL,AcceleratedVideoDecodeLinuxGL,AcceleratedVideoDecodeLinuxZeroCopyGL,AcceleratedVideoEncoder,VaapiIgnoreDriverChecks,CanvasOopRasterization,ParallelDownloading,BackForwardCache --ignore-gpu-blocklist --enable-gpu-rasterization --enable-oop-rasterization --enable-zero-copy --no-default-browser-check --no-first-run --disable-breakpad --disable-crash-reporter --disable-domain-reliability --disable-pings --temp-profile %U
 
 [Desktop Action safe-mode]
 Name=Open in Safe Mode
 Name[tr]=Güvenli Modda Aç
 Icon=cromite
-Exec=env NVD_BACKEND=direct __NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia /usr/bin/cromite --ozone-platform=x11 --enable-features=VaapiVideoDecodeLinuxGL,VaapiVideoEncoderLinuxGL,AcceleratedVideoDecodeLinuxGL,AcceleratedVideoDecodeLinuxZeroCopyGL,AcceleratedVideoEncoder,VaapiIgnoreDriverChecks,CanvasOopRasterization,ParallelDownloading,BackForwardCache --disable-features=Vulkan --ignore-gpu-blocklist --enable-gpu-rasterization --enable-oop-rasterization --enable-zero-copy --use-gl=angle --use-angle=gl --no-default-browser-check --no-first-run --disable-breakpad --disable-crash-reporter --disable-domain-reliability --disable-pings --disable-extensions --safe-mode %U
+Exec=/usr/bin/cromite --ozone-platform-hint=auto --disable-features=Vulkan --enable-features=VaapiVideoDecodeLinuxGL,VaapiVideoEncoderLinuxGL,AcceleratedVideoDecodeLinuxGL,AcceleratedVideoDecodeLinuxZeroCopyGL,AcceleratedVideoEncoder,VaapiIgnoreDriverChecks,CanvasOopRasterization,ParallelDownloading,BackForwardCache --ignore-gpu-blocklist --enable-gpu-rasterization --enable-oop-rasterization --enable-zero-copy --no-default-browser-check --no-first-run --disable-breakpad --disable-crash-reporter --disable-domain-reliability --disable-pings --disable-extensions --safe-mode %U
 
 [Desktop Action dark-mode]
 Name=Open in Dark Mode
 Name[tr]=Karanlık Modda Aç
 Icon=cromite
-Exec=env NVD_BACKEND=direct __NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia /usr/bin/cromite --ozone-platform=x11 --enable-features=VaapiVideoDecodeLinuxGL,VaapiVideoEncoderLinuxGL,AcceleratedVideoDecodeLinuxGL,AcceleratedVideoDecodeLinuxZeroCopyGL,AcceleratedVideoEncoder,VaapiIgnoreDriverChecks,CanvasOopRasterization,ParallelDownloading,BackForwardCache --disable-features=Vulkan --ignore-gpu-blocklist --enable-gpu-rasterization --enable-oop-rasterization --enable-zero-copy --use-gl=angle --use-angle=gl --no-default-browser-check --no-first-run --disable-breakpad --disable-crash-reporter --disable-domain-reliability --disable-pings --force-dark-mode %U
+Exec=/usr/bin/cromite --ozone-platform-hint=auto --disable-features=Vulkan --enable-features=VaapiVideoDecodeLinuxGL,VaapiVideoEncoderLinuxGL,AcceleratedVideoDecodeLinuxGL,AcceleratedVideoDecodeLinuxZeroCopyGL,AcceleratedVideoEncoder,VaapiIgnoreDriverChecks,CanvasOopRasterization,ParallelDownloading,BackForwardCache --ignore-gpu-blocklist --enable-gpu-rasterization --enable-oop-rasterization --enable-zero-copy --no-default-browser-check --no-first-run --disable-breakpad --disable-crash-reporter --disable-domain-reliability --disable-pings --force-dark-mode %U
 EOF
 
-# AppStream Metainfo dosyası
 cat << 'EOF' > %{buildroot}%{_datadir}/metainfo/org.cromite.cromite.metainfo.xml
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
@@ -359,7 +249,7 @@ cat << 'EOF' > %{buildroot}%{_datadir}/metainfo/org.cromite.cromite.metainfo.xml
       <li>Enhanced anti-fingerprinting protections (Canvas, WebGL, AudioContext, Font defenses).</li>
       <li>Telemetry, reporting, and background Google connections stripped out by default.</li>
       <li>Hardened network and security defaults (HTTPS-First, DNS-over-HTTPS, strict site isolation).</li>
-      <li>Hardware-accelerated VA-API video decoding/encoding, Zero-Copy, OOP-Rasterization, and ANGLE OpenGL support.</li>
+      <li>Native Wayland and X11 hardware-accelerated VA-API video playback and Zero-Copy rasterization.</li>
     </ul>
   </description>
   <launchable type="desktop-id">cromite.desktop</launchable>
@@ -375,7 +265,6 @@ cat << 'EOF' > %{buildroot}%{_datadir}/metainfo/org.cromite.cromite.metainfo.xml
 </component>
 EOF
 
-# Simgeleri hicolor dizinlerine yerleştir
 find %{buildroot}/opt/cromite -iname "*logo*.png" -exec cp -f {} %{buildroot}%{_datadir}/icons/hicolor/48x48/apps/cromite.png \; 2>/dev/null || true
 
 cat << 'EOF' > %{buildroot}%{_datadir}/icons/hicolor/scalable/apps/cromite.svg
@@ -409,4 +298,4 @@ appstream-util validate-relax --nonet %{buildroot}%{_datadir}/metainfo/org.cromi
 
 %changelog
 * Thu Oct 15 2026 Saffet Yavuz : universish <universish@tutamail.com> - %{version}-%{release}
-- Fixed isolated ~/.config/cromite profile, Wayland/Vulkan conflict, system libvulkan symlink, and AIA SSL certificate fetching
+- Auto-incrementing release number, native Wayland/X11 auto-detection (--ozone-platform-hint=auto --disable-features=Vulkan), and isolated ~/.config/cromite profile
