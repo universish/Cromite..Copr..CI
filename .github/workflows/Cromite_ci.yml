@@ -26,11 +26,26 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Upstream Sürümünü ve Release Numarasını Hesapla
+      - name: Upstream Sürümünü ve Release (<package-number>) Numarasını Hesapla
         id: check_release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # 0. Depodaki .spec dosyasını otomatik bul
+          SPEC_FILE=""
+          for candidate in "specs/Cromite.spec" "specs/cromite.spec" "Cromite.spec" "cromite.spec" $(find . -maxdepth 3 -iname "*.spec" 2>/dev/null); do
+            if [ -f "$candidate" ]; then
+              SPEC_FILE="$candidate"
+              break
+            fi
+          done
+
+          if [ -z "$SPEC_FILE" ]; then
+            echo "HATA: Depoda hiçbir .spec dosyası bulunamadı!"
+            exit 1
+          fi
+          echo "spec_file=$SPEC_FILE" >> $GITHUB_OUTPUT
+
           # 1. Upstream uazo/cromite/releases üzerinden içinde chrome-lin64.tar.gz bulunan en güncel sürüm etiketini al
           RELEASES_JSON=$(curl -sL -H "Accept: application/vnd.github+json" \
             ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} \
@@ -51,32 +66,67 @@ jobs:
           echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-          # 2. Copr API'den universish/Cromite.. deposundaki bu sürüm için en yüksek release'i bul
-          COPR_API="https://copr.fedorainfracloud.org/api_3/package?ownername=universish&projectname=Cromite..&packagename=cromite&with_all_builds=true"
-          LATEST_REL=$(curl -sL "$COPR_API" | jq -r --arg ver "$VERSION" '
-            [.builds[]? | select(.version != null and (.version | startswith($ver))) | .version | split("-")[1] | split(".")[0] | tonumber] | max // 0
+          # 2A. Git deposundaki mevcut spec dosyasından Version ve Release numarasını oku
+          SPEC_VERSION=$(awk '/^Version:[[:space:]]*/ {print $2}' "$SPEC_FILE" | head -n1)
+          SPEC_REL=$(awk '/^Release:[[:space:]]*/ {print $2}' "$SPEC_FILE" | sed -E 's/%\{.*\}//g; s/[^0-9].*//g' | head -n1)
+          SPEC_REL=${SPEC_REL:-0}
+
+          # 2B. Copr API v3 build/list ve package uç noktalarından bu sürüm için en yüksek release'i bul
+          # (Hem .source_package.version hem .version alanlarını tarar)
+          COPR_PKG_API="https://copr.fedorainfracloud.org/api_3/package?ownername=universish&projectname=Cromite..&packagename=cromite&with_all_builds=true"
+          COPR_LIST_API="https://copr.fedorainfracloud.org/api_3/build/list?ownername=universish&projectname=Cromite..&packagename=cromite"
+
+          COPR_REL_1=$(curl -sL "$COPR_PKG_API" | jq -r --arg ver "$VERSION" '
+            [
+              (.. | objects | (.source_package.version? // .version? // empty))
+              | select(type == "string" and startswith($ver + "-"))
+              | split("-")[1] | split(".")[0] | tonumber? // 0
+            ] | max // 0
           ' 2>/dev/null || echo "0")
 
-          # 3. Aynı sürümse bir artır, yeni sürümse 1 yap
+          COPR_REL_2=$(curl -sL "$COPR_LIST_API" | jq -r --arg ver "$VERSION" '
+            [
+              (.items[]? | (.source_package.version? // .version? // empty))
+              | select(type == "string" and startswith($ver + "-"))
+              | split("-")[1] | split(".")[0] | tonumber? // 0
+            ] | max // 0
+          ' 2>/dev/null || echo "0")
+
+          # En yüksek COPR release değerini seç
+          COPR_REL="$COPR_REL_1"
+          if [ "${COPR_REL_2:-0}" -gt "${COPR_REL:-0}" ] 2>/dev/null; then
+            COPR_REL="$COPR_REL_2"
+          fi
+
+          # 2C. Git spec içindeki release ile COPR üzerindeki release'den hangisi büyükse onu temel al
+          LATEST_REL="${COPR_REL:-0}"
+          if [ "$SPEC_VERSION" = "$VERSION" ] && [ "${SPEC_REL:-0}" -gt "${LATEST_REL:-0}" ] 2>/dev/null; then
+            LATEST_REL="$SPEC_REL"
+          fi
+
+          # 3. Her çalıştırmada <package-number> değerini garantili olarak +1 artır!
           NEW_RELEASE=$((LATEST_REL + 1))
+          echo "Mevcut en yüksek Release: $LATEST_REL (Spec: $SPEC_REL, COPR: $COPR_REL) -> Yeni Release: $NEW_RELEASE"
           echo "release=$NEW_RELEASE" >> $GITHUB_OUTPUT
 
           # 4. Derleme gerekli mi?
-          if [ "${{ github.event_name }}" = "schedule" ] && [ "$LATEST_REL" -gt 0 ]; then
+          # Cron zamanlayıcıdaysa sadece yeni upstream sürüm geldiyse (COPR_REL == 0 ise) derle.
+          # Push veya workflow_dispatch (manuel başlatma) ise HER ZAMAN <package-number>+1 ile derle!
+          if [ "${{ github.event_name }}" = "schedule" ] && [ "${COPR_REL:-0}" -gt 0 ]; then
             echo "build_needed=false" >> $GITHUB_OUTPUT
             echo "Upstream sürümünde değişiklik yok ($VERSION zaten Copr üzerinde mevcut)."
           else
             echo "build_needed=true" >> $GITHUB_OUTPUT
-            echo "Derleme başlatılıyor: Sürüm $VERSION, Release $NEW_RELEASE"
+            echo "Derleme başlatılıyor: cromite-${VERSION}-${NEW_RELEASE}"
           fi
 
-      - name: Kaynakları İndir ve Hazırla
-        id: prepare_spec
+      - name: Kaynakları İndir ve Spec Sürüm/Release Numarasını Güncelle
         if: steps.check_release.outputs.build_needed == 'true'
         run: |
           TAG="${{ steps.check_release.outputs.latest_tag }}"
           VERSION="${{ steps.check_release.outputs.version }}"
           RELEASE="${{ steps.check_release.outputs.release }}"
+          SPEC_FILE="${{ steps.check_release.outputs.spec_file }}"
 
           mkdir -p rpmbuild/SOURCES
           mkdir -p rpmbuild/SRPMS
@@ -85,37 +135,25 @@ jobs:
           curl -fL --retry 3 "https://github.com/uazo/cromite/releases/download/${TAG}/chrome-lin64.tar.gz" \
             -o rpmbuild/SOURCES/chrome-lin64.tar.gz
 
-          # Ek kaynakları (varsa sources/ veya kök dizindeki .desktop ve .xml dosyalarını) kopyala
           if [ -d sources ] && [ "$(ls -A sources)" ]; then
             cp -f sources/* rpmbuild/SOURCES/ 2>/dev/null || true
           fi
           cp -f *.desktop *.xml *.sh rpmbuild/SOURCES/ 2>/dev/null || true
 
-          # Depodaki .spec dosyasını otomatik bul (specs/Cromite.spec, Cromite.spec, cromite.spec vb.)
-          SPEC_FILE=""
-          for candidate in "specs/Cromite.spec" "specs/cromite.spec" "Cromite.spec" "cromite.spec" $(find . -maxdepth 3 -iname "*.spec" 2>/dev/null); do
-            if [ -f "$candidate" ]; then
-              SPEC_FILE="$candidate"
-              break
+          # Spec dosyasındaki Version ve Release (<package-number>) alanlarını dinamik olarak güncelle
+          for f in "$SPEC_FILE" "specs/Cromite.spec" "Cromite.spec" "cromite.spec"; do
+            if [ -f "$f" ]; then
+              sed -i -E "s/^(Version:[[:space:]]*).*/\1${VERSION}/" "$f"
+              sed -i -E "s/^(Release:[[:space:]]*).*/\1${RELEASE}%{?dist}/" "$f"
             fi
           done
 
-          if [ -z "$SPEC_FILE" ]; then
-            echo "HATA: Depoda hiçbir .spec dosyası bulunamadı! Lütfen specs/Cromite.spec dosyasını depoya ekleyin."
-            exit 1
-          fi
-
-          echo "Bulunan spec dosyası: $SPEC_FILE"
-          echo "spec_file=$SPEC_FILE" >> $GITHUB_OUTPUT
-
-          # Spec dosyasındaki Version ve Release alanlarını dinamik olarak güncelle
-          sed -i -E "s/^(Version:[[:space:]]*).*/\1${VERSION}/" "$SPEC_FILE"
-          sed -i -E "s/^(Release:[[:space:]]*).*/\1${RELEASE}%{?dist}/" "$SPEC_FILE"
+          grep -E "^(Version|Release):" "$SPEC_FILE"
 
       - name: Fedora Docker ile SRPM Üret
         if: steps.check_release.outputs.build_needed == 'true'
         run: |
-          SPEC_FILE="${{ steps.prepare_spec.outputs.spec_file }}"
+          SPEC_FILE="${{ steps.check_release.outputs.spec_file }}"
           docker run --rm \
             -v ${{ github.workspace }}:/workspace \
             -w /workspace \
@@ -146,20 +184,19 @@ jobs:
           echo "Yüklenen SRPM: $SRPM_PATH"
           copr-cli build --nowait "universish/Cromite.." "$SRPM_PATH"
 
-      - name: Spec Değişikliğini ve Git Etiketini Kaydet
+      - name: Yeni Release (<package-number>) Numarasını Git Deposuna Kaydet
         if: steps.check_release.outputs.build_needed == 'true'
         run: |
           VERSION="${{ steps.check_release.outputs.version }}"
           RELEASE="${{ steps.check_release.outputs.release }}"
-          SPEC_FILE="${{ steps.prepare_spec.outputs.spec_file }}"
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git add "$SPEC_FILE"
-          git diff --staged --quiet || git commit -m "chore(release): build v${VERSION}-${RELEASE}"
+          git add "*.spec" "specs/*.spec" 2>/dev/null || git add -u
+          git diff --staged --quiet || git commit -m "chore(release): build v${VERSION}-${RELEASE} [skip ci]"
+          git pull --rebase origin main || true
           git push origin main
 
-          # Sürüm etiketini güncelle
-          git tag -f "v${VERSION}"
-          git push origin "refs/tags/v${VERSION}" --force
+          git tag -f "v${VERSION}-${RELEASE}"
+          git push origin "refs/tags/v${VERSION}-${RELEASE}" --force
