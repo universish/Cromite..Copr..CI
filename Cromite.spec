@@ -5,6 +5,7 @@
 %global __brp_strip_lto %{nil}
 %global __brp_strip_static_archive %{nil}
 %global __brp_mangle_shebangs %{nil}
+%global _commit 11507ac1061b5ea227806f5e84db5a57df6ccf6a
 %define _build_id_links none
 
 # check-rpaths ve brp kontrollerini devre dışı bırakır (Tauon.spec mimarisi)
@@ -23,7 +24,7 @@ Summary:        A Bromite fork with ad blocking and privacy enhancements
 License:        GPL-3.0-or-later
 URL:            https://github.com/uazo/cromite
 
-Source0:        chrome-lin64.tar.gz
+Source0:        https://github.com/uazo/cromite/releases/download/v%{version}-%{_commit}/chrome-lin64.tar.gz
 
 ExclusiveArch:  x86_64 aarch64
 
