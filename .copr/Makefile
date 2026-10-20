@@ -2,7 +2,7 @@
 # Depo: https://github.com/universish/Cromite..Copr..CI
 # COPR: https://copr.fedorainfracloud.org/coprs/universish/Cromite../
 
-SPEC ?= cromite.spec
+SPEC ?= $(shell [ -f Cromite.spec ] && echo Cromite.spec || echo cromite.spec)
 outdir ?= .
 
 .PHONY: srpm
