@@ -1,202 +1,173 @@
-name: Cromite Copr CI
+name: Cromite Upstream Kontrol, RPM Paketleme ve Fedora COPR Yayınlama CI
 
 on:
   schedule:
-    - cron: '0 3 * * *' # Her gün 03:00 UTC'de yeni sürüm kontrolü
+    # uazo'nun yerel saat dilimi (İtalya - Europe/Rome):
+    # Öğle arası (~12:30 CEST / 11:30 CET) ve İş çıkışı (~18:30 CEST / 17:30 CET)
+    - cron: '30 10 * * *'
+    - cron: '30 16 * * *'
   workflow_dispatch:
-  push:
-    paths:
-      - 'specs/Cromite.spec'
-      - 'specs/cromite.spec'
-      - 'Cromite.spec'
-      - 'cromite.spec'
-      - 'sources/**'
-    branches:
-      - main
+    inputs:
+      force_build:
+        description: 'Yeni sürüm olmasa bile zorla paketle ve COPR deposuna gönder'
+        required: false
+        default: 'false'
+        type: boolean
 
 permissions:
   contents: write
 
 jobs:
-  check-and-build:
+  # ============================================================================
+  # 1. AŞAMA: GÜNCEL SÜRÜMÜN YAYINLANIP YAYINLANMADIĞININ KONTROLÜ
+  # ============================================================================
+  stage-1-check-update:
+    name: "1. Aşama: Upstream Sürüm Kontrolü"
     runs-on: ubuntu-latest
+    outputs:
+      updated: ${{ steps.check.outputs.updated }}
+      version: ${{ steps.check.outputs.version }}
+      commit: ${{ steps.check.outputs.commit }}
+      short_commit: ${{ steps.check.outputs.short_commit }}
+      tag: ${{ steps.check.outputs.tag }}
+      asset_url: ${{ steps.check.outputs.asset_url }}
     steps:
-      - name: Depoyu Klonla
+      - name: Depoyu İndir
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Upstream Sürümünü ve Release (<package-number>) Numarasını Hesapla
-        id: check_release
+      - name: uazo/cromite Yeni Sürüm Kontrolü
+        id: check
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FORCE_BUILD: ${{ inputs.force_build || 'false' }}
         run: |
-          # 0. Depodaki .spec dosyasını otomatik bul
-          SPEC_FILE=""
-          for candidate in "specs/Cromite.spec" "specs/cromite.spec" "Cromite.spec" "cromite.spec" $(find . -maxdepth 3 -iname "*.spec" 2>/dev/null); do
-            if [ -f "$candidate" ]; then
-              SPEC_FILE="$candidate"
-              break
-            fi
-          done
+          chmod +x scripts/update_version.sh
+          ./scripts/update_version.sh
 
-          if [ -z "$SPEC_FILE" ]; then
-            echo "HATA: Depoda hiçbir .spec dosyası bulunamadı!"
-            exit 1
-          fi
-          echo "spec_file=$SPEC_FILE" >> $GITHUB_OUTPUT
-
-          # 1. Upstream uazo/cromite/releases üzerinden içinde chrome-lin64.tar.gz bulunan en güncel sürüm etiketini al
-          RELEASES_JSON=$(curl -sL -H "Accept: application/vnd.github+json" \
-            ${GH_TOKEN:+-H "Authorization: Bearer $GH_TOKEN"} \
-            "https://api.github.com/repos/uazo/cromite/releases?per_page=15")
-
-          LATEST_TAG=$(echo "$RELEASES_JSON" | jq -r '
-            [ .[] | select(.draft == false) | select(any(.assets[]; .name == "chrome-lin64.tar.gz")) ][0].tag_name // empty
-          ')
-
-          if [ -z "$LATEST_TAG" ] || [ "$LATEST_TAG" = "null" ]; then
-            echo "Upstream sürüm etiketi alınamadı."
-            exit 1
-          fi
-
-          # Etiket formatı: v153.0.8010.37-11507ac1061b5ea227806f5e84db5a57df6ccf6a -> 153.0.8010.37
-          CLEAN_TAG="${LATEST_TAG#v}"
-          VERSION="${CLEAN_TAG%%-*}"
-          echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
-          # 2A. Git deposundaki mevcut spec dosyasından Version ve Release numarasını oku
-          SPEC_VERSION=$(awk '/^Version:[[:space:]]*/ {print $2}' "$SPEC_FILE" | head -n1)
-          SPEC_REL=$(awk '/^Release:[[:space:]]*/ {print $2}' "$SPEC_FILE" | sed -E 's/%\{.*\}//g; s/[^0-9].*//g' | head -n1)
-          SPEC_REL=${SPEC_REL:-0}
-
-          # 2B. Copr API v3 build/list ve package uç noktalarından bu sürüm için en yüksek release'i bul
-          # (Hem .source_package.version hem .version alanlarını tarar)
-          COPR_PKG_API="https://copr.fedorainfracloud.org/api_3/package?ownername=universish&projectname=Cromite..&packagename=cromite&with_all_builds=true"
-          COPR_LIST_API="https://copr.fedorainfracloud.org/api_3/build/list?ownername=universish&projectname=Cromite..&packagename=cromite"
-
-          COPR_REL_1=$(curl -sL "$COPR_PKG_API" | jq -r --arg ver "$VERSION" '
-            [
-              (.. | objects | (.source_package.version? // .version? // empty))
-              | select(type == "string" and startswith($ver + "-"))
-              | split("-")[1] | split(".")[0] | tonumber? // 0
-            ] | max // 0
-          ' 2>/dev/null || echo "0")
-
-          COPR_REL_2=$(curl -sL "$COPR_LIST_API" | jq -r --arg ver "$VERSION" '
-            [
-              (.items[]? | (.source_package.version? // .version? // empty))
-              | select(type == "string" and startswith($ver + "-"))
-              | split("-")[1] | split(".")[0] | tonumber? // 0
-            ] | max // 0
-          ' 2>/dev/null || echo "0")
-
-          # En yüksek COPR release değerini seç
-          COPR_REL="$COPR_REL_1"
-          if [ "${COPR_REL_2:-0}" -gt "${COPR_REL:-0}" ] 2>/dev/null; then
-            COPR_REL="$COPR_REL_2"
-          fi
-
-          # 2C. Git spec içindeki release ile COPR üzerindeki release'den hangisi büyükse onu temel al
-          LATEST_REL="${COPR_REL:-0}"
-          if [ "$SPEC_VERSION" = "$VERSION" ] && [ "${SPEC_REL:-0}" -gt "${LATEST_REL:-0}" ] 2>/dev/null; then
-            LATEST_REL="$SPEC_REL"
-          fi
-
-          # 3. Her çalıştırmada <package-number> değerini garantili olarak +1 artır!
-          NEW_RELEASE=$((LATEST_REL + 1))
-          echo "Mevcut en yüksek Release: $LATEST_REL (Spec: $SPEC_REL, COPR: $COPR_REL) -> Yeni Release: $NEW_RELEASE"
-          echo "release=$NEW_RELEASE" >> $GITHUB_OUTPUT
-
-          # 4. Derleme gerekli mi?
-          # Cron zamanlayıcıdaysa sadece yeni upstream sürüm geldiyse (COPR_REL == 0 ise) derle.
-          # Push veya workflow_dispatch (manuel başlatma) ise HER ZAMAN <package-number>+1 ile derle!
-          if [ "${{ github.event_name }}" = "schedule" ] && [ "${COPR_REL:-0}" -gt 0 ]; then
-            echo "build_needed=false" >> $GITHUB_OUTPUT
-            echo "Upstream sürümünde değişiklik yok ($VERSION zaten Copr üzerinde mevcut)."
+      - name: Kontrol Sonucu Özeti
+        run: |
+          if [[ "${{ steps.check.outputs.updated }}" == "true" ]]; then
+            echo "🚀 Yeni sürüm doğrulandı: v${{ steps.check.outputs.version }} (${{ steps.check.outputs.short_commit }}). 2. aşamaya geçiliyor..."
           else
-            echo "build_needed=true" >> $GITHUB_OUTPUT
-            echo "Derleme başlatılıyor: cromite-${VERSION}-${NEW_RELEASE}"
+            echo "⏹️ Yeni güncelleme yayınlanmadı (Mevcut: v${{ steps.check.outputs.version }}). İş akışı sonlandırılıyor."
           fi
 
-      - name: Kaynakları İndir ve Spec Sürüm/Release Numarasını Güncelle
-        if: steps.check_release.outputs.build_needed == 'true'
+  # ============================================================================
+  # 2. AŞAMA: ARŞİVİN İNDİRİLİP AÇILMASI VE RPM SPEC İLE YENİDEN PAKETLENMESİ
+  # ============================================================================
+  stage-2-repackage-rpm:
+    name: "2. Aşama: İndirme ve RPM Paketleme"
+    needs: stage-1-check-update
+    if: needs.stage-1-check-update.outputs.updated == 'true'
+    runs-on: ubuntu-latest
+    container:
+      image: registry.fedoraproject.org/fedora:44
+    steps:
+      - name: Fedora RPM Derleme Araçlarını Kur
         run: |
-          TAG="${{ steps.check_release.outputs.latest_tag }}"
-          VERSION="${{ steps.check_release.outputs.version }}"
-          RELEASE="${{ steps.check_release.outputs.release }}"
-          SPEC_FILE="${{ steps.check_release.outputs.spec_file }}"
+          dnf -y install \
+            rpm-build \
+            rpmdevtools \
+            dnf-plugins-core \
+            desktop-file-utils \
+            libappstream-glib \
+            git \
+            curl \
+            jq \
+            tar \
+            gzip \
+            awk \
+            sed
 
-          mkdir -p rpmbuild/SOURCES
-          mkdir -p rpmbuild/SRPMS
+      - name: Depoyu İndir
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-          echo "x86_64 arşivi (chrome-lin64.tar.gz) indiriliyor..."
-          curl -fL --retry 3 "https://github.com/uazo/cromite/releases/download/${TAG}/chrome-lin64.tar.gz" \
-            -o rpmbuild/SOURCES/chrome-lin64.tar.gz
-
-          if [ -d sources ] && [ "$(ls -A sources)" ]; then
-            cp -f sources/* rpmbuild/SOURCES/ 2>/dev/null || true
-          fi
-          cp -f *.desktop *.xml *.sh rpmbuild/SOURCES/ 2>/dev/null || true
-
-          # Spec dosyasındaki Version ve Release (<package-number>) alanlarını dinamik olarak güncelle
-          for f in "$SPEC_FILE" "specs/Cromite.spec" "Cromite.spec" "cromite.spec"; do
-            if [ -f "$f" ]; then
-              sed -i -E "s/^(Version:[[:space:]]*).*/\1${VERSION}/" "$f"
-              sed -i -E "s/^(Release:[[:space:]]*).*/\1${RELEASE}%{?dist}/" "$f"
-            fi
-          done
-
-          grep -E "^(Version|Release):" "$SPEC_FILE"
-
-      - name: Fedora Docker ile SRPM Üret
-        if: steps.check_release.outputs.build_needed == 'true'
+      - name: Spec Dosyasını Güncelle, Arşivi İndir/Aç ve RPM Paketle
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FORCE_BUILD: ${{ inputs.force_build || 'false' }}
         run: |
-          SPEC_FILE="${{ steps.check_release.outputs.spec_file }}"
-          docker run --rm \
-            -v ${{ github.workspace }}:/workspace \
-            -w /workspace \
-            fedora:latest bash -c "
-              dnf install -y rpmdevtools rpm-build
-              rpmbuild -bs \
-                --define '_topdir /workspace/rpmbuild' \
-                --define '_sourcedir /workspace/rpmbuild/SOURCES' \
-                \"$SPEC_FILE\"
-            "
+          # Spec dosyasını yeni sürüm bilgileriyle güncelle
+          chmod +x scripts/update_version.sh
+          ./scripts/update_version.sh
 
-      - name: Copr CLI Kurulumu ve SRPM Gönderimi
-        if: steps.check_release.outputs.build_needed == 'true'
+          SPEC_FILE="Cromite.spec"
+          [ ! -f "$SPEC_FILE" ] && SPEC_FILE="cromite.spec"
+
+          rpmdev-setuptree
+          cp -f *.desktop *.sh *.xml ~/rpmbuild/SOURCES/ 2>/dev/null || :
+
+          echo "📥 İndiriliyor: ${{ needs.stage-1-check-update.outputs.asset_url }}"
+          curl -fL --retry 3 -o ~/rpmbuild/SOURCES/chrome-lin64.tar.gz "${{ needs.stage-1-check-update.outputs.asset_url }}"
+
+          echo "📂 Arşiv bütünlüğü doğrulanıyor ve açılıyor..."
+          mkdir -p /tmp/verify-extract
+          tar -xzf ~/rpmbuild/SOURCES/chrome-lin64.tar.gz -C /tmp/verify-extract
+          rm -rf /tmp/verify-extract
+
+          echo "📦 Fedora COPR Spec ile SRPM ve RPM yeniden paketleniyor..."
+          rpmbuild -ba "$SPEC_FILE"
+
+          mkdir -p dist
+          cp -v ~/rpmbuild/SRPMS/*.src.rpm dist/
+          cp -v ~/rpmbuild/RPMS/x86_64/*.rpm dist/
+
+      - name: Güncellenen Spec Dosyasını Depoya Commit Et
         run: |
-          sudo apt-get update && sudo apt-get install -y python3-pip
-          pip install --break-system-packages copr-cli 2>/dev/null || pip install copr-cli
-
-          mkdir -p ~/.config
-          cat <<EOF > ~/.config/copr
-          [copr-cli]
-          copr_url = https://copr.fedorainfracloud.org
-          login = ${{ secrets.COPR_LOGIN }}
-          token = ${{ secrets.COPR_TOKEN }}
-          username = ${{ secrets.COPR_USERNAME }}
-          EOF
-
-          SRPM_PATH=$(ls rpmbuild/SRPMS/*.src.rpm)
-          echo "Yüklenen SRPM: $SRPM_PATH"
-          copr-cli build --nowait "universish/Cromite.." "$SRPM_PATH"
-
-      - name: Yeni Release (<package-number>) Numarasını Git Deposuna Kaydet
-        if: steps.check_release.outputs.build_needed == 'true'
-        run: |
-          VERSION="${{ steps.check_release.outputs.version }}"
-          RELEASE="${{ steps.check_release.outputs.release }}"
-
           git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m "chore(release): update Cromite to v${{ needs.stage-1-check-update.outputs.version }} (${{ needs.stage-1-check-update.outputs.short_commit }})"
+            git push origin HEAD:main
+          fi
 
-          git add "*.spec" "specs/*.spec" 2>/dev/null || git add -u
-          git diff --staged --quiet || git commit -m "chore(release): build v${VERSION}-${RELEASE} [skip ci]"
-          git pull --rebase origin main || true
-          git push origin main
+      - name: Derlenen RPM ve SRPM Paketlerini Artifact Olarak Yükle
+        uses: actions/upload-artifact@v4
+        with:
+          name: cromite-rpms-${{ needs.stage-1-check-update.outputs.version }}
+          path: dist/*.rpm
 
-          git tag -f "v${VERSION}-${RELEASE}"
-          git push origin "refs/tags/v${VERSION}-${RELEASE}" --force
+  # ============================================================================
+  # 3. AŞAMA: FEDORA COPR DEPOSUNA GÖNDERİM VE YAYINLAMA
+  # ============================================================================
+  stage-3-publish-copr:
+    name: "3. Aşama: Fedora COPR Yayınlama ve Bildirim"
+    needs: [stage-1-check-update, stage-2-repackage-rpm]
+    if: always() && needs.stage-1-check-update.outputs.updated == 'true' && needs.stage-2-repackage-rpm.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Depoyu İndir
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: RPM Paketlerini İndir
+        uses: actions/download-artifact@v4
+        with:
+          name: cromite-rpms-${{ needs.stage-1-check-update.outputs.version }}
+          path: dist
+
+      - name: Fedora COPR Deposunu Tetikle ve Yayınla
+        env:
+          COPR_WEBHOOK_URL: ${{ secrets.COPR_WEBHOOK_URL }}
+          NOTIFY_WEBHOOK_URL: ${{ secrets.NOTIFY_WEBHOOK_URL }}
+        run: |
+          chmod +x scripts/send_webhook.sh
+          ./scripts/send_webhook.sh \
+            "${{ needs.stage-1-check-update.outputs.version }}" \
+            "${{ needs.stage-1-check-update.outputs.commit }}"
+
+      - name: GitHub Releases Üzerinde RPM Paketlerini Yayınla
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.stage-1-check-update.outputs.version }}-${{ needs.stage-1-check-update.outputs.short_commit }}
+          name: Cromite RPM v${{ needs.stage-1-check-update.outputs.version }} (${{ needs.stage-1-check-update.outputs.short_commit }})
+          body: |
+            [uazo/cromite](https://github.com/uazo/cromite/releases/tag/${{ needs.stage-1-check-update.outputs.tag }}) `chrome-lin64.tar.gz` sürümünden otomatik olarak paketlenen RPM ve SRPM dosyaları.
+            - **Fedora COPR Deposu:** https://copr.fedorainfracloud.org/coprs/universish/Cromite../
+          files: |
+            dist/*.rpm
+          generate_release_notes: true
