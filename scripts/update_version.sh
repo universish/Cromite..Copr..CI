@@ -1,9 +1,16 @@
 #!/usr/bin/env bash
-# https://github.com/uazo/cromite/releases sayfasındaki son sürümü ve
-# chrome-lin64.tar.gz arşivini kontrol ederek cromite.spec dosyasını günceller.
+# https://github.com/uazo/cromite/releases sayfasındaki son sürümü kontrol eder.
 set -euo pipefail
 
-SPEC_FILE="${1:-cromite.spec}"
+if [[ -f "Cromite.spec" ]]; then
+    SPEC_FILE="Cromite.spec"
+elif [[ -f "cromite.spec" ]]; then
+    SPEC_FILE="cromite.spec"
+else
+    echo "❌ Spec dosyası (Cromite.spec / cromite.spec) bulunamadı!" >&2
+    exit 1
+fi
+
 UPSTREAM_REPO="uazo/cromite"
 TARBALL_NAME="chrome-lin64.tar.gz"
 
@@ -14,7 +21,6 @@ if [[ -n "${GH_TOKEN:-}" ]]; then
     CURL_ARGS+=(-H "Authorization: Bearer ${GH_TOKEN}")
 fi
 
-# Tüm sürümler içinden içerisinde chrome-lin64.tar.gz bulunan en güncel sürümü seç
 RELEASES_JSON="$(curl "${CURL_ARGS[@]}" "https://api.github.com/repos/${UPSTREAM_REPO}/releases?per_page=10")"
 
 RELEASE_DATA="$(echo "${RELEASES_JSON}" | jq -r --arg tarball "${TARBALL_NAME}" '
@@ -36,35 +42,48 @@ NEW_VERSION="${CLEAN_TAG%%-*}"
 NEW_COMMIT="${CLEAN_TAG#*-}"
 SHORT_COMMIT="${NEW_COMMIT:0:7}"
 
-CURRENT_VERSION="$(awk '/^Version:/ {print $2}' "${SPEC_FILE}")"
-CURRENT_COMMIT="$(awk '/^%global _commit/ {print $3}' "${SPEC_FILE}")"
+CURRENT_VERSION="$(awk '/^Version:/ {print $2}' "${SPEC_FILE}" | head -n1)"
+CURRENT_COMMIT="$(awk '/^%global _commit/ {print $3}' "${SPEC_FILE}" | head -n1)"
 
-echo "📌 Mevcut Sürüm  : ${CURRENT_VERSION} (${CURRENT_COMMIT:0:7})"
+echo "📌 Mevcut Sürüm  : ${CURRENT_VERSION} (${CURRENT_COMMIT:-yok})"
 echo "🚀 Upstream Sürüm: ${NEW_VERSION} (${SHORT_COMMIT})"
-echo "📦 Tarball URL   : ${ASSET_URL}"
 
-if [[ "${NEW_VERSION}" == "${CURRENT_VERSION}" && "${NEW_COMMIT}" == "${CURRENT_COMMIT}" ]]; then
-    echo "✅ ${SPEC_FILE} zaten güncel (${TAG_NAME})."
-    if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
-        {
-            echo "updated=false"
-            echo "version=${CURRENT_VERSION}"
-            echo "commit=${CURRENT_COMMIT}"
-            echo "short_commit=${CURRENT_COMMIT:0:7}"
-            echo "tag=${TAG_NAME}"
-            echo "asset_url=${ASSET_URL}"
-        } >> "${GITHUB_OUTPUT}"
+# Eğer FORCE_BUILD aktif değilse ve sürüm (ve varsa commit) aynıysa sonlandır
+if [[ "${FORCE_BUILD:-false}" != "true" ]]; then
+    if [[ "${NEW_VERSION}" == "${CURRENT_VERSION}" ]] && [[ -z "${CURRENT_COMMIT}" || "${NEW_COMMIT}" == "${CURRENT_COMMIT}" ]]; then
+        echo "✅ ${SPEC_FILE} zaten güncel (${TAG_NAME}). Paketleme yapılmayacak."
+        if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+            {
+                echo "updated=false"
+                echo "version=${CURRENT_VERSION}"
+                echo "commit=${NEW_COMMIT}"
+                echo "short_commit=${SHORT_COMMIT}"
+                echo "tag=${TAG_NAME}"
+                echo "asset_url=${ASSET_URL}"
+            } >> "${GITHUB_OUTPUT}"
+        fi
+        exit 0
     fi
-    exit 0
 fi
 
-# cromite.spec dosyasını yeni sürüm ve commit ile güncelle
+# Spec dosyasında _commit makrosu yoksa ekle, varsa güncelle
+if grep -q "^%global _commit" "${SPEC_FILE}"; then
+    sed -i "s/^%global _commit .*/%global _commit ${NEW_COMMIT}/" "${SPEC_FILE}"
+else
+    sed -i "1i %global _commit ${NEW_COMMIT}" "${SPEC_FILE}"
+fi
+
+# Version, Release ve Source0 alanlarını güncelle
 sed -i "s/^Version:[[:space:]]*.*/Version:        ${NEW_VERSION}/" "${SPEC_FILE}"
-sed -i "s/^%global _commit .*/%global _commit ${NEW_COMMIT}/" "${SPEC_FILE}"
-sed -i "s/^Release:[[:space:]]*.*/Release:        1.git%{_shortcommit}%{?dist}/" "${SPEC_FILE}"
+sed -i "s|^Source0:[[:space:]]*.*|Source0:        https://github.com/uazo/cromite/releases/download/v%{version}-%{_commit}/chrome-lin64.tar.gz|" "${SPEC_FILE}"
+
+# Yeni sürümde Release değerini 1'e sıfırla (zorla derlemede mevcutsa 1 artır)
+if [[ "${NEW_VERSION}" != "${CURRENT_VERSION}" ]]; then
+    sed -i "s/^Release:[[:space:]]*.*/Release:        1%{?dist}/" "${SPEC_FILE}"
+fi
 
 CHANGELOG_DATE="$(LC_ALL=C date '+%a %b %d %Y')"
-CHANGELOG_ENTRY="* ${CHANGELOG_DATE} universish <noreply@github.com> - ${NEW_VERSION}-1.git${SHORT_COMMIT}\n- Upstream ${TAG_NAME} (${TARBALL_NAME}) sürümüne güncellendi\n- Kaynak: ${ASSET_URL}"
+CHANGELOG_ENTRY="* ${CHANGELOG_DATE} Saffet Yavuz : universish <universish@tutamail.com> - ${NEW_VERSION}-1\n- Upstream ${TAG_NAME} (${TARBALL_NAME}) sürümüne güncellendi"
 if [[ -n "${ASSET_DIGEST}" ]]; then
     CHANGELOG_ENTRY="${CHANGELOG_ENTRY}\n- Digest: ${ASSET_DIGEST}"
 fi
