@@ -62,8 +62,17 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: registry.fedoraproject.org/fedora:44
+      
     steps:
-      - name: Fedora RPM Derleme Araçlarını Kur
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure Git Bot
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          
+      - name: Fedora RPM ve Güvenlik Araçlarını Kur
         run: |
           dnf -y install \
             rpm-build \
@@ -77,26 +86,14 @@ jobs:
             tar \
             gzip \
             awk \
-            sed
+            sed \
+            clamav \
+            clamav-data
 
-      - name: Depoyu İndir
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Copy icon to RPM SOURCES
-        run: |
-          mkdir -p ~/rpmbuild/SOURCES/
-          cp assets/cromite-icon.png ~/rpmbuild/SOURCES/
-
-      - name: RPM Paketini Derle (Build RPM)
-        env:
-          VT_API_KEY: ${{ secrets.VIRUSTOTAL_API_KEY }}
-        run: rpmbuild -ba cromite.spec
-    
-      - name: Spec Dosyasını Güncelle, Arşivi İndir/Aç ve RPM Paketle
+      - name: Spec Dosyasını Güncelle, Arşivi İndir ve Güvenlik Taraması Yap
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VT_API_KEY: ${{ secrets.VIRUSTOTAL_API_KEY }}
           FORCE_BUILD: ${{ inputs.force_build || 'false' }}
         run: |
           # Spec dosyasını yeni sürüm bilgileriyle güncelle
@@ -107,17 +104,66 @@ jobs:
           [ ! -f "$SPEC_FILE" ] && SPEC_FILE="cromite.spec"
 
           rpmdev-setuptree
+          
+          # İkonu ve gerekli dosyaları SOURCES dizinine kopyala
+          mkdir -p ~/rpmbuild/SOURCES/
+          cp -f assets/cromite-icon.png ~/rpmbuild/SOURCES/
           cp -f *.desktop *.sh *.xml ~/rpmbuild/SOURCES/ 2>/dev/null || :
 
           echo "📥 İndiriliyor: ${{ needs.stage-1-check-update.outputs.asset_url }}"
           curl -fL --retry 3 -o ~/rpmbuild/SOURCES/chrome-lin64.tar.gz "${{ needs.stage-1-check-update.outputs.asset_url }}"
 
-          echo "📂 Arşiv bütünlüğü doğrulanıyor ve açılıyor..."
+          # ====================================================================
+          # TEDARİK ZİNCİRİ GÜVENLİK KONTROLÜ (VirusTotal + ClamAV)
+          # ====================================================================
+          echo "🔒 Tedarik zinciri güvenliği taramaları başlatılıyor..."
+
+          # 1. Aşama: VirusTotal API Hash Sorgusu
+          if [ -z "${VT_API_KEY:-}" ]; then
+              echo "⚠️ UYARI: VT_API_KEY bulunamadı. VirusTotal adımı atlanıyor!"
+          else
+              echo "🔍 VirusTotal'de dosya özeti (hash) sorgulanıyor..."
+              TAR_HASH=$(sha256sum ~/rpmbuild/SOURCES/chrome-lin64.tar.gz | awk '{print $1}')
+              
+              VT_RESPONSE=$(curl -s -w "\n%{http_code}" --request GET \
+                --url "https://www.virustotal.com/api/v3/files/$TAR_HASH" \
+                --header "x-apikey: ${VT_API_KEY}")
+                
+              HTTP_CODE=$(echo "$VT_RESPONSE" | tail -n1)
+              JSON_BODY=$(echo "$VT_RESPONSE" | sed '$d')
+
+              if [ "$HTTP_CODE" -eq 200 ]; then
+                  MALICIOUS=$(echo "$JSON_BODY" | jq -r '.data.attributes.last_analysis_stats.malicious')
+                  if [ "$MALICIOUS" -gt 0 ]; then
+                      echo "❌ KRİTİK HATA: VirusTotal bu dosyada $MALICIOUS adet zararlı tespiti buldu! Derleme iptal ediliyor."
+                      exit 1
+                  else
+                      echo "✅ VirusTotal Taraması Temiz: 0 zararlı."
+                  fi
+              elif [ "$HTTP_CODE" -eq 404 ]; then
+                  echo "ℹ️ BİLGİ: Dosya henüz VirusTotal'de yok (Yeni sürüm). ClamAV ile devam ediliyor."
+              else
+                  echo "⚠️ UYARI: VirusTotal API yanıt vermedi (HTTP $HTTP_CODE)."
+              fi
+          fi
+
+          # 2. Aşama: ClamAV ile Yerel Arşiv ve Dosya Taraması
+          echo "🦠 ClamAV ile arşiv taranıyor..."
+          freshclam --quiet || true
           mkdir -p /tmp/verify-extract
           tar -xzf ~/rpmbuild/SOURCES/chrome-lin64.tar.gz -C /tmp/verify-extract
+          
+          clamscan --recursive --infected --failifmacs /tmp/verify-extract || { 
+              echo "❌ KRİTİK HATA: ClamAV zararlı yazılım tespit etti! Derleme iptal ediliyor."; 
+              exit 1; 
+          }
           rm -rf /tmp/verify-extract
+          echo "✅ ClamAV taraması temiz."
 
-          echo "📦 Fedora COPR Spec ile SRPM ve RPM yeniden paketleniyor..."
+          # ====================================================================
+          # RPM PAKETLEME
+          # ====================================================================
+          echo "📦 Fedora COPR Spec ile SRPM ve RPM paketleniyor..."
           rpmbuild -ba "$SPEC_FILE"
 
           mkdir -p dist
@@ -126,8 +172,6 @@ jobs:
 
       - name: Güncellenen Spec Dosyasını Depoya Commit Et
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
           if ! git diff --cached --quiet; then
             git commit -m "chore(release): update Cromite to v${{ needs.stage-1-check-update.outputs.version }} (${{ needs.stage-1-check-update.outputs.short_commit }})"
@@ -139,7 +183,7 @@ jobs:
         with:
           name: cromite-rpms-${{ needs.stage-1-check-update.outputs.version }}
           path: dist/*.rpm
-
+          
   # ============================================================================
   # 3. AŞAMA: FEDORA COPR DEPOSUNA GÖNDERİM VE YAYINLAMA
   # ============================================================================
