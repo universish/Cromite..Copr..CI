@@ -88,6 +88,11 @@ jobs:
         run: |
           mkdir -p ~/rpmbuild/SOURCES/
           cp assets/cromite-icon.png ~/rpmbuild/SOURCES/
+
+      - name: Build RPM
+        env:
+          VT_API_KEY: ${{ secrets.VIRUSTOTAL_API_KEY }}
+        run: rpmbuild -ba cromite.spec
     
       - name: Spec Dosyasını Güncelle, Arşivi İndir/Aç ve RPM Paketle
         env:
