@@ -105,6 +105,7 @@ mkdir -p %{buildroot}%{_datadir}/applications
 mkdir -p %{buildroot}%{_datadir}/metainfo
 mkdir -p %{buildroot}%{_datadir}/icons/hicolor/scalable/apps
 mkdir -p %{buildroot}%{_datadir}/icons/hicolor/48x48/apps
+install -Dm644 assets/cromite-icon.png %{buildroot}%{_datadir}/pixmaps/cromite.png
 
 # Dosyaları /opt/cromite altına yerleştir
 cp -a ./* %{buildroot}/opt/cromite/
@@ -232,6 +233,9 @@ Icon=cromite
 Exec=/usr/bin/cromite --ozone-platform-hint=auto --disable-features=Vulkan --enable-features=VaapiVideoDecodeLinuxGL,VaapiVideoEncoderLinuxGL,AcceleratedVideoDecodeLinuxGL,AcceleratedVideoDecodeLinuxZeroCopyGL,AcceleratedVideoEncoder,VaapiIgnoreDriverChecks,CanvasOopRasterization,ParallelDownloading,BackForwardCache --ignore-gpu-blocklist --enable-gpu-rasterization --enable-oop-rasterization --enable-zero-copy --no-default-browser-check --no-first-run --disable-breakpad --disable-crash-reporter --disable-domain-reliability --disable-pings --log-level=3 --force-dark-mode %U
 EOF
 
+# .desktop dosyasındaki ikon satırını güncelleyin
+sed -i 's/^Icon=.*/Icon=cromite/' %{buildroot}%{_datadir}/applications/%{name}.desktop
+
 cat << 'EOF' > %{buildroot}%{_datadir}/metainfo/org.cromite.cromite.metainfo.xml
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
@@ -297,6 +301,7 @@ appstream-util validate-relax --nonet %{buildroot}%{_datadir}/metainfo/org.cromi
 %{_datadir}/applications/%{name}.desktop
 %{_datadir}/metainfo/org.cromite.cromite.metainfo.xml
 %{_datadir}/icons/hicolor/*/*/*
+%{_datadir}/pixmaps/cromite.png
 
 %changelog
 * Thu Oct 15 2026 Saffet Yavuz : universish <universish@tutamail.com> - %{version}-%{release}
