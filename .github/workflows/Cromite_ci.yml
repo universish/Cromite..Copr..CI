@@ -64,23 +64,16 @@ jobs:
       image: registry.fedoraproject.org/fedora:44
       
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Configure Git Bot
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          
+      # 1. Önce Fedora Konteynerine gerekli tüm araçları (git dahil) kuruyoruz
       - name: Fedora RPM ve Güvenlik Araçlarını Kur
         run: |
           dnf -y install \
+            git \
             rpm-build \
             rpmdevtools \
             dnf-plugins-core \
             desktop-file-utils \
             libappstream-glib \
-            git \
             curl \
             jq \
             tar \
@@ -90,6 +83,17 @@ jobs:
             clamav \
             clamav-data
 
+      # 2. Artık git kurulu olduğu için depoyu eksiksiz klonlayabiliriz
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 3. Git komutu kullanıma hazır, ayarları güvenle yapabiliriz
+      - name: Configure Git Bot
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          
+      # 4. Geri kalan adımlarınız aynen devam edebilir...
       - name: Spec Dosyasını Güncelle, Arşivi İndir ve Güvenlik Taraması Yap
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
