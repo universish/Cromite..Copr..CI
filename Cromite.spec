@@ -25,6 +25,7 @@ License:        GPL-3.0-or-later
 URL:            https://github.com/uazo/cromite
 
 Source0:        https://github.com/uazo/cromite/releases/download/v%{version}-%{_commit}/chrome-lin64.tar.gz
+Source1:        assets/cromite-icon.png
 
 ExclusiveArch:  x86_64 aarch64
 
@@ -105,7 +106,7 @@ mkdir -p %{buildroot}%{_datadir}/applications
 mkdir -p %{buildroot}%{_datadir}/metainfo
 
 # Yeni eklediğiniz 1024x1024 kaliteli ikonu sisteme tek ve ana ikon olarak yüklüyoruz
-install -Dm644 assets/cromite-icon.png %{buildroot}%{_datadir}/pixmaps/cromite.png
+install -Dm644 %{SOURCE1} %{buildroot}%{_datadir}/pixmaps/cromite.png
 
 # Dosyaları /opt/cromite altına yerleştir
 cp -a ./* %{buildroot}/opt/cromite/
