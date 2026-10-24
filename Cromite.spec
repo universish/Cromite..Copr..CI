@@ -25,7 +25,7 @@ License:        GPL-3.0-or-later
 URL:            https://github.com/uazo/cromite
 
 Source0:        https://github.com/uazo/cromite/releases/download/v%{version}-%{_commit}/chrome-lin64.tar.gz
-Source1:        assets/cromite-icon.png
+Source1:        https://raw.githubusercontent.com/universish/Cromite..Copr..CI/main/assets/cromite-icon.png
 
 ExclusiveArch:  x86_64 aarch64
 
