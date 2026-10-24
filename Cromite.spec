@@ -38,6 +38,10 @@ BuildRequires:  libappstream-glib
 %if 0%{?suse_version}
 BuildRequires:  appstream-glib
 %endif
+BuildRequires:  clamav
+BuildRequires:  clamav-data
+BuildRequires:  curl
+BuildRequires:  jq
 
 Requires:       ca-certificates
 Requires:       hicolor-icon-theme
@@ -96,7 +100,43 @@ if [ $(ls -1A | wc -l) -eq 1 ] && [ -d * ]; then
 fi
 
 %build
-# Portable binary; derleme adımı gerekmez.
+echo "Tedarik zinciri güvenliği: Çift kademeli tarama başlatılıyor..."
+
+# 1. Aşama: VirusTotal API Sorgusu (SHA-256 Hash tabanlı)
+if [ -z "${VT_API_KEY:-}" ]; then
+    echo "UYARI: VT_API_KEY çevre değişkeni bulunamadı. VirusTotal adımı atlanıyor!"
+else
+    echo "VirusTotal'de dosya özeti (hash) sorgulanıyor..."
+    TAR_HASH=$(sha256sum %{SOURCE0} | awk '{print $1}')
+    
+    VT_RESPONSE=$(curl -s -w "\n%{http_code}" --request GET \
+      --url "https://www.virustotal.com/api/v3/files/$TAR_HASH" \
+      --header "x-apikey: ${VT_API_KEY}")
+      
+    HTTP_CODE=$(echo "$VT_RESPONSE" | tail -n1)
+    JSON_BODY=$(echo "$VT_RESPONSE" | sed '$d')
+
+    if [ "$HTTP_CODE" -eq 200 ]; then
+        MALICIOUS=$(echo "$JSON_BODY" | jq -r '.data.attributes.last_analysis_stats.malicious')
+        if [ "$MALICIOUS" -gt 0 ]; then
+            echo "KRİTİK HATA: VirusTotal bu dosyada $MALICIOUS adet zararlı motor tespiti buldu! Derleme iptal ediliyor."
+            exit 1
+        else
+            echo "VirusTotal Taraması Temiz: 0 zararlı tespit."
+        fi
+    elif [ "$HTTP_CODE" -eq 404 ]; then
+        echo "BİLGİ: Bu sürüm henüz VirusTotal'de taranmamış (Yeni yayınlanmış olabilir). ClamAV taramasına güvenilecek."
+    else
+        echo "UYARI: VirusTotal API'ye ulaşılamadı (HTTP $HTTP_CODE)."
+    fi
+fi
+
+# 2. Aşama: ClamAV ile Yerel Çıkarılmış Dosya Taraması
+echo "ClamAV ile yerel dosyalar taranıyor..."
+freshclam --quiet || true 
+clamscan --recursive --infected --failifmacs . || { echo "KRİTİK HATA: ClamAV zararlı veya arka kapı tespit etti! Derleme iptal ediliyor."; exit 1; }
+
+echo "Güvenlik taramaları tamamlandı. Paketlemeye devam ediliyor."
 
 %install
 rm -rf %{buildroot}
