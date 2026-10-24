@@ -103,8 +103,8 @@ mkdir -p %{buildroot}/opt/cromite
 mkdir -p %{buildroot}%{_bindir}
 mkdir -p %{buildroot}%{_datadir}/applications
 mkdir -p %{buildroot}%{_datadir}/metainfo
-mkdir -p %{buildroot}%{_datadir}/icons/hicolor/scalable/apps
-mkdir -p %{buildroot}%{_datadir}/icons/hicolor/48x48/apps
+
+# Yeni eklediğiniz 1024x1024 kaliteli ikonu sisteme tek ve ana ikon olarak yüklüyoruz
 install -Dm644 assets/cromite-icon.png %{buildroot}%{_datadir}/pixmaps/cromite.png
 
 # Dosyaları /opt/cromite altına yerleştir
@@ -233,9 +233,6 @@ Icon=cromite
 Exec=/usr/bin/cromite --ozone-platform-hint=auto --disable-features=Vulkan --enable-features=VaapiVideoDecodeLinuxGL,VaapiVideoEncoderLinuxGL,AcceleratedVideoDecodeLinuxGL,AcceleratedVideoDecodeLinuxZeroCopyGL,AcceleratedVideoEncoder,VaapiIgnoreDriverChecks,CanvasOopRasterization,ParallelDownloading,BackForwardCache --ignore-gpu-blocklist --enable-gpu-rasterization --enable-oop-rasterization --enable-zero-copy --no-default-browser-check --no-first-run --disable-breakpad --disable-crash-reporter --disable-domain-reliability --disable-pings --log-level=3 --force-dark-mode %U
 EOF
 
-# .desktop dosyasındaki ikon satırını güncelleyin
-sed -i 's/^Icon=.*/Icon=cromite/' %{buildroot}%{_datadir}/applications/%{name}.desktop
-
 cat << 'EOF' > %{buildroot}%{_datadir}/metainfo/org.cromite.cromite.metainfo.xml
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
@@ -271,25 +268,6 @@ cat << 'EOF' > %{buildroot}%{_datadir}/metainfo/org.cromite.cromite.metainfo.xml
 </component>
 EOF
 
-find %{buildroot}/opt/cromite -iname "*logo*.png" -exec cp -f {} %{buildroot}%{_datadir}/icons/hicolor/48x48/apps/cromite.png \; 2>/dev/null || true
-
-cat << 'EOF' > %{buildroot}%{_datadir}/icons/hicolor/scalable/apps/cromite.svg
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
-  <defs>
-    <linearGradient id="cromiteGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#1e88e5"/>
-      <stop offset="100%" stop-color="#1565c0"/>
-    </linearGradient>
-  </defs>
-  <circle cx="64" cy="64" r="56" fill="url(#cromiteGrad)"/>
-  <circle cx="64" cy="64" r="24" fill="#ffffff"/>
-  <circle cx="64" cy="64" r="18" fill="#0d47a1"/>
-  <path d="M64 24 A40 40 0 0 1 101 80" fill="none" stroke="#bbdefb" stroke-width="10" stroke-linecap="round"/>
-</svg>
-EOF
-
-find %{buildroot}%{_datadir}/icons/hicolor -type d -empty -delete 2>/dev/null || true
-
 %check
 desktop-file-validate %{buildroot}%{_datadir}/applications/%{name}.desktop || true
 appstream-util validate-relax --nonet %{buildroot}%{_datadir}/metainfo/org.cromite.cromite.metainfo.xml || true
@@ -300,7 +278,6 @@ appstream-util validate-relax --nonet %{buildroot}%{_datadir}/metainfo/org.cromi
 %{_bindir}/cromite-browser
 %{_datadir}/applications/%{name}.desktop
 %{_datadir}/metainfo/org.cromite.cromite.metainfo.xml
-%{_datadir}/icons/hicolor/*/*/*
 %{_datadir}/pixmaps/cromite.png
 
 %changelog
