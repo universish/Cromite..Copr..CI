@@ -84,6 +84,11 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Copy icon to RPM SOURCES
+        run: |
+          mkdir -p ~/rpmbuild/SOURCES/
+          cp assets/cromite-icon.png ~/rpmbuild/SOURCES/
+    
       - name: Spec Dosyasını Güncelle, Arşivi İndir/Aç ve RPM Paketle
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
