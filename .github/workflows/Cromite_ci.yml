@@ -43,13 +43,18 @@ jobs:
         run: |
           chmod +x scripts/update_version.sh
           ./scripts/update_version.sh
+          
+          # Zorla paketleme seçildiyse scriptin engelini aşıp güncellemeyi onaylıyoruz
+          if [[ "${{ inputs.force_build }}" == "true" ]]; then
+            echo "updated=true" >> $GITHUB_OUTPUT
+          fi
 
       - name: Kontrol Sonucu Özeti
         run: |
           if [[ "${{ steps.check.outputs.updated }}" == "true" ]]; then
-            echo "🚀 Yeni sürüm doğrulandı: v${{ steps.check.outputs.version }} (${{ steps.check.outputs.short_commit }}). 2. aşamaya geçiliyor..."
+            echo "🚀 Yeni sürüm doğrulandı veya 'Zorla Paketleme' seçildi. 2. aşamaya geçiliyor..."
           else
-            echo "⏹️ Yeni güncelleme yayınlanmadı (Mevcut: v${{ steps.check.outputs.version }}). İş akışı sonlandırılıyor."
+            echo "⏹️ Yeni güncelleme yayınlanmadı ve zorla paketleme seçilmedi (Mevcut: v${{ steps.check.outputs.version }}). İş akışı sonlandırılıyor."
           fi
 
   # ============================================================================
