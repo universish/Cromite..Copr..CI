@@ -285,6 +285,10 @@ appstream-util validate-relax --nonet %{buildroot}%{_datadir}/metainfo/org.cromi
 %{_datadir}/pixmaps/cromite.png
 
 %changelog
+* Sun Oct 25 2026 Saffet Yavuz : universish <universish@tutamail.com> - 153.0.8010.37-1
+- Upstream v153.0.8010.37-11507ac1061b5ea227806f5e84db5a57df6ccf6a (chrome-lin64.tar.gz) sürümüne güncellendi
+- Digest: sha256:6fe67a4a75a3a5013cc470a3061606c44dc148531c42d8c56317ef0c7f8340cf
+
 * Sun Oct 25 2026 Saffet Yavuz : universish <universish@tutamail.com> - 153.0.8010.37-5
 - Virüs taramalarını GitHub Actions'a taşı; COPR derlemelerinden ClamAV ve VirusTotal bağımlılıklarını kaldır
 
