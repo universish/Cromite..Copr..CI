@@ -21,11 +21,16 @@ if [[ -n "${GH_TOKEN:-}" ]]; then
     CURL_ARGS+=(-H "Authorization: Bearer ${GH_TOKEN}")
 fi
 
-RELEASES_JSON="$(curl "${CURL_ARGS[@]}" "https://api.github.com/repos/${UPSTREAM_REPO}/releases?per_page=10")"
-
-RELEASE_DATA="$(echo "${RELEASES_JSON}" | jq -r --arg tarball "${TARBALL_NAME}" '
-  [ .[] | select(.draft == false) | select(any(.assets[]; .name == $tarball)) ][0]
-')"
+if [[ -n "${UPSTREAM_TAG:-}" ]]; then
+    # Paketleme aşaması sürüm kontrolünün seçtiği etikete sabitlenir.
+    [[ "$UPSTREAM_TAG" =~ ^v[0-9]+(\.[0-9]+){3}-[0-9a-f]{40}$ ]] || { echo "Geçersiz upstream etiketi" >&2; exit 1; }
+    RELEASE_DATA="$(curl "${CURL_ARGS[@]}" "https://api.github.com/repos/${UPSTREAM_REPO}/releases/tags/${UPSTREAM_TAG}")"
+else
+    RELEASES_JSON="$(curl "${CURL_ARGS[@]}" "https://api.github.com/repos/${UPSTREAM_REPO}/releases?per_page=10")"
+    RELEASE_DATA="$(echo "${RELEASES_JSON}" | jq -r --arg tarball "${TARBALL_NAME}" '
+      [ .[] | select(.draft == false) | select(any(.assets[]; .name == $tarball)) ][0]
+    ')"
+fi
 
 if [[ -z "${RELEASE_DATA}" || "${RELEASE_DATA}" == "null" ]]; then
     echo "❌ https://github.com/${UPSTREAM_REPO}/releases üzerinde ${TARBALL_NAME} içeren sürüm bulunamadı!" >&2
@@ -60,6 +65,7 @@ if [[ "${FORCE_BUILD:-false}" != "true" ]]; then
                 echo "short_commit=${SHORT_COMMIT}"
                 echo "tag=${TAG_NAME}"
                 echo "asset_url=${ASSET_URL}"
+                echo "asset_digest=${ASSET_DIGEST}"
             } >> "${GITHUB_OUTPUT}"
         fi
         exit 0
@@ -100,5 +106,6 @@ if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
         echo "short_commit=${SHORT_COMMIT}"
         echo "tag=${TAG_NAME}"
         echo "asset_url=${ASSET_URL}"
+        echo "asset_digest=${ASSET_DIGEST}"
     } >> "${GITHUB_OUTPUT}"
 fi

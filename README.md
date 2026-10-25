@@ -1,4 +1,4 @@
-# **Cromite..Copr..CI — Fedora & openSUSE RPM Repository** 
+# **Cromite..Copr..CI — Fedora, Enterprise Linux & openSUSE RPM Repository**
 
 This repository (universish/Cromite..Copr..CI) uses the official Linux tarball archive ( `chromelin64.tar.gz` ) published by <u>uazo/cromite to generate RPM packages for universish/Cromite..</u> Fedora COPR repository and automatically generates RPM packages via GitHub Actions. 
 
@@ -11,10 +11,11 @@ Since there are no ready-made `.deb` , `.rpm,` or `.AppImage files` in the upstr
 | **Fedora** | 44, 45, Rawhide | `fedora-44-x86_64`, `fedora-45-x86_64`, `fedora-rawhide-x86_64` (and `aarch64`) |
 | **openSUSE Tumbleweed** | Rolling | `opensuse-tumbleweed-x86_64`, `opensuse-tumbleweed-aarch64` |
 | **openSUSE Leap** | 16.0 | `opensuse-leap-16.0-x86_64`, `opensuse-leap-16.0-aarch64` |
+| **AlmaLinux / Alma+EPEL / Kitten** | 9, 10 | Enabled `x86_64`, `x86_64_v2`, `aarch64` targets |
+| **CentOS Stream / Stream+EPEL Next** | 8, 9, 10 | Enabled `x86_64`, `aarch64` targets |
+| **RHEL / EPEL** | 7, 8, 9, 10 | Enabled targets; EL7 cannot run this upstream binary |
 
-
-
-(configured with the `%ifarch aarch64` conditional dependency filter and `cromite.sh` with `box64` wrapper support). 
+The [compatibility guide](docs/compatibility.md) lists all 47 enabled chroots and separates RPM build targets from runtime support. The official Linux payload is x86-64; ARM64 packages require Box64. The inspected payload requires GLIBC 2.25, so standard EL7 systems cannot install/run it even if an RPM is produced.
 
 ### **Directory and File Structure** 
 
@@ -55,12 +56,12 @@ Under **Settings -> Secrets and variables -> Actions**, configure:
 | Secret | Purpose |
 | :--- | :--- |
 | `COPR_LOGIN`, `COPR_USERNAME`, `COPR_TOKEN` | COPR API credentials for direct SRPM upload |
-| `VIRUSTOTAL_API_KEY` | Optional VirusTotal SHA-256 lookup |
+| `VIRUSTOTAL_API_KEY` | Required VirusTotal checks of the archive and main Cromite ELF |
 | `NOTIFY_WEBHOOK_URL` | Optional notification webhook |
 
-The Fedora container in stage 2 runs on the GitHub Actions VM. It downloads the upstream archive, updates the ClamAV database, and scans the extracted files with `scripts/scan_archive.sh` before creating RPMs and the SRPM from that same archive. A database update failure, scan error, detection, or scan size limit blocks packaging and COPR upload. The scanner allows files up to 2000 MB so the Chromium executable is not silently skipped by the default size limit.
+The Fedora container in stage 2 runs on the GitHub Actions VM. It verifies the upstream digest when available, inspects shell scripts and ELF metadata, updates ClamAV, and scans the extracted files with `scripts/scan_archive.sh` before creating RPMs and the SRPM from that same archive. A database update failure, scan error, detection, or scan size limit blocks packaging and COPR upload. The scanner allows files up to 2000 MiB so the Chromium executable is not silently skipped by the default size limit.
 
-VirusTotal is an optional hash lookup, not a file upload. A missing API key or HTTP 404 is reported and the mandatory ClamAV scan still runs. With a configured key, a detection, invalid response, or API/network error blocks packaging. Run the workflow manually with **force_build = true** to rebuild the current upstream version after applying these CI changes.
+VirusTotal checks both SHA-256 hashes. Unknown public upstream files within the upload limit are submitted and a completed analysis is required. A missing key, detection, invalid response, API/network error, or analysis timeout blocks packaging. As selected by the user, an unknown file above 650 MiB produces a warning and an `unavailable_size_limit` report entry; packaging may proceed only after the mandatory ClamAV and static checks pass. The file is never labeled clean based on that warning. See the [security policy and target details](docs/compatibility.md). Run the workflow manually with **force_build = true** to rebuild the current upstream version after applying these CI changes.
 
 ## **3. Installation Commands**
 
@@ -88,7 +89,7 @@ sudo zypper install cromite
 
 TR-tr:
 
-# Cromite..Copr..CI — Fedora & openSUSE RPM Paketleme Deposu
+# Cromite..Copr..CI — Fedora, Enterprise Linux & openSUSE RPM Paketleme Deposu
 
 Bu depo ([universish/Cromite..Copr..CI](https://github.com/universish/Cromite..Copr..CI)), [uazo/cromite](https://github.com/uazo/cromite/releases) tarafından yayınlanan resmi Linux tarball arşivini (`chrome-lin64.tar.gz`) kullanarak [universish/Cromite..](https://copr.fedorainfracloud.org/coprs/universish/Cromite../) Fedora COPR deposu ve GitHub Actions üzerinde otomatik RPM paketleri üretir.
 
@@ -101,8 +102,11 @@ Upstream kaynakta hazır `.deb`, `.rpm` veya `.AppImage` bulunmadığından, bu 
 | **Fedora** | 44, 45, Rawhide | `fedora-44-x86_64`, `fedora-45-x86_64`, `fedora-rawhide-x86_64` (ve `aarch64`) |
 | **openSUSE Tumbleweed** | Rolling | `opensuse-tumbleweed-x86_64`, `opensuse-tumbleweed-aarch64` |
 | **openSUSE Leap** | 16.0 | `opensuse-leap-16.0-x86_64`, `opensuse-leap-16.0-aarch64` |
+| **AlmaLinux / Alma+EPEL / Kitten** | 9, 10 | Etkin `x86_64`, `x86_64_v2`, `aarch64` hedefleri |
+| **CentOS Stream / Stream+EPEL Next** | 8, 9, 10 | Etkin `x86_64`, `aarch64` hedefleri |
+| **RHEL / EPEL** | 7, 8, 9, 10 | Etkin hedefler; EL7 bu upstream ikilisini çalıştıramaz |
 
-> **Mimari Notu (`x86_64` ve `arm64`/`aarch64`):** Upstream [uazo/cromite Releases](https://github.com/uazo/cromite/releases) sayfasında Linux için yalnızca `x86_64` mimarili `chrome-lin64.tar.gz` arşivi yayınlanmaktadır (`arm64` derlemeleri upstream'de yalnızca Android `.apk` içindir). `cromite.spec` dosyası hem `x86_64` hem de `aarch64` chroot hedeflerinde derlenebilecek şekilde (`%ifarch aarch64` koşullu bağımlılık filtresi ve `cromite.sh` içinde `box64` sarmalayıcı desteğiyle) yapılandırılmıştır.
+> **Mimari ve çalışma koşulları:** [Uyumluluk kılavuzu](docs/compatibility.md) 47 etkin chroot'u listeler. Linux upstream payload'ı x86-64'tür; ARM64 paketleri Box64 gerektirir ve yerel ARM64 derlemeleri değildir. İncelenen payload GLIBC 2.25 gerektirir; standart EL7 sistemleri, RPM üretilse bile bu paketi kurup çalıştıramaz.
 
 ## Dizin ve Dosya Yapısı
 
@@ -142,12 +146,12 @@ Cromite..Copr..CI/
 | Secret Adı | Açıklama |
 | :--- | :--- |
 | `COPR_LOGIN`, `COPR_USERNAME`, `COPR_TOKEN` | SRPM'i doğrudan yüklemek için COPR API kimlik bilgileri |
-| `VIRUSTOTAL_API_KEY` | İsteğe bağlı VirusTotal SHA-256 sorgusu |
+| `VIRUSTOTAL_API_KEY` | Arşiv ve ana Cromite ELF dosyasının zorunlu VirusTotal kontrolü |
 | `NOTIFY_WEBHOOK_URL` | Yeni `chrome-lin64.tar.gz` sürümü algılandığında bildirim gönderilecek Discord, Slack, Gotify veya JSON Webhook adresi |
 
-İkinci aşamadaki Fedora konteyneri GitHub Actions sanal makinesinde çalışır. Upstream arşivi indirilir, ClamAV veritabanı güncellenir ve çıkarılan dosyalar `scripts/scan_archive.sh` ile taranır. Ancak tarama başarılı olduktan sonra aynı arşivden RPM ve SRPM oluşturulur. Veritabanı güncelleme hatası, tarama hatası, zararlı tespiti veya tarama boyutu sınırının aşılması paketlemeyi ve COPR'a gönderimi durdurur. Chromium ikilisinin varsayılan boyut sınırında sessizce atlanmaması için dosya sınırı 2000 MB olarak ayarlanmıştır.
+İkinci aşamadaki Fedora konteyneri GitHub Actions sanal makinesinde çalışır. Varsa upstream SHA-256 özeti doğrulanır, kabuk betikleri ve ELF metadata denetlenir, ClamAV güncellenir ve çıkarılan dosyalar `scripts/scan_archive.sh` ile taranır. Güvenlik politikası karşılandıktan sonra aynı arşivden RPM ve SRPM oluşturulur. Veritabanı güncelleme hatası, tarama hatası, zararlı tespiti veya tarama boyutu sınırının aşılması paketlemeyi ve COPR'a gönderimi durdurur. Chromium ikilisinin varsayılan boyut sınırında sessizce atlanmaması için dosya sınırı 2000 MiB olarak ayarlanmıştır.
 
-VirusTotal isteğe bağlı bir dosya özeti sorgusudur; dosya yüklemez. API anahtarı yoksa veya HTTP 404 dönerse bu durum bildirilir ve zorunlu ClamAV taraması yapılır. Anahtar tanımlıyken zararlı tespiti, geçersiz yanıt veya API/ağ hatası paketlemeyi durdurur. Bu CI değişikliklerini uyguladıktan sonra mevcut upstream sürümünü yeniden paketlemek için iş akışını **force_build = true** ile elle çalıştırın.
+VirusTotal hem arşivin hem ana ikilinin dosya özetini sorgular. Bilinmeyen ve yükleme sınırına uyan herkese açık upstream dosyaları yüklenir ve tamamlanmış analiz beklenir. Anahtar eksikliği, zararlı tespiti, geçersiz yanıt, API/ağ hatası veya analiz zaman aşımı paketlemeyi durdurur. Kullanıcının seçtiği istisna: VirusTotal'de bilinmeyen 650 MiB üzerindeki dosyada uyarı ve `unavailable_size_limit` kaydı oluşturulur; zorunlu ClamAV ve statik kontroller başarılıysa paketleme devam eder. Bu durum “temiz” sonucu olarak sunulmaz. Ayrıntılar [uyumluluk ve güvenlik kılavuzundadır](docs/compatibility.md). Bu değişikliklerden sonra mevcut upstream sürümünü yeniden paketlemek için iş akışını **force_build = true** ile çalıştırın.
 
 ## 3. Kurulum Komutları
 

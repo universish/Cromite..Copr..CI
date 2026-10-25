@@ -6,6 +6,11 @@
 %global __brp_strip_static_archive %{nil}
 %global __brp_mangle_shebangs %{nil}
 %global _commit 11507ac1061b5ea227806f5e84db5a57df6ccf6a
+%global _min_glibc 2.25
+# EL7 dahil eski RPM okuyucuları için RPM v4 ve gzip payload kullan.
+%global _rpmformat 4
+%global _source_payload w9.gzdio
+%global _binary_payload w9.gzdio
 %define _build_id_links none
 
 # check-rpaths ve brp kontrollerini devre dışı bırakır (Tauon.spec mimarisi)
@@ -18,7 +23,7 @@
 
 Name:           cromite
 Version:        153.0.8010.37
-Release:        5%{?dist}
+Release:        6%{?dist}
 Summary:        A Bromite fork with ad blocking and privacy enhancements
 
 License:        GPL-3.0-or-later
@@ -27,7 +32,7 @@ URL:            https://github.com/uazo/cromite
 Source0:        https://github.com/uazo/cromite/releases/download/v%{version}-%{_commit}/chrome-lin64.tar.gz
 Source1:        https://raw.githubusercontent.com/universish/Cromite..Copr..CI/main/assets/cromite-icon.png
 
-ExclusiveArch:  x86_64 aarch64
+ExclusiveArch:  x86_64 x86_64_v2 aarch64
 
 BuildRequires:  tar
 BuildRequires:  gzip
@@ -47,34 +52,45 @@ Requires:       xdg-utils
 Requires:       xdg-user-dirs
 Requires:       at-spi2-core
 Requires:       fontconfig
-Requires:       (p11-kit-trust or mozilla-nss-certs)
-Requires:       (alsa-lib or libasound2)
-Requires:       (at-spi2-atk or libatk-bridge-2_0-0)
-Requires:       (atk or libatk-1_0-0)
-Requires:       (cairo or libcairo2)
-Requires:       (cups-libs or libcups2)
-Requires:       (dbus-libs or libdbus-1-3)
-Requires:       (expat or libexpat1)
-Requires:       (freetype or libfreetype6)
-Requires:       (glib2 or libglib-2_0-0)
-Requires:       (gtk3 or libgtk-3-0)
-Requires:       (libX11 or libX11-6)
-Requires:       (libXcomposite or libXcomposite1)
-Requires:       (libXdamage or libXdamage1)
-Requires:       (libXext or libXext6)
-Requires:       (libXfixes or libXfixes3)
-Requires:       (libXrandr or libXrandr2)
-Requires:       (libgbm or libgbm1)
-Requires:       (libxcb or libxcb1)
-Requires:       (libxkbcommon or libxkbcommon0)
-Requires:       (nspr or mozilla-nspr)
-Requires:       (nss or mozilla-nss)
-Requires:       (pango or libpango-1_0-0)
-Requires:       (pipewire-libs or libpipewire-0_3-0)
-Requires:       (libwayland-client or libwayland-client0)
-Requires:       (libwayland-egl or libwayland-egl1)
-Requires:       (libwayland-cursor or libwayland-cursor0)
-Requires:       (vulkan-loader or libvulkan1)
+Requires:       bash
+Requires:       glibc >= %{_min_glibc}
+# SONAME yetenekleri Fedora, EL ve openSUSE paket adlarından bağımsızdır.
+# Parantezli "pkgA or pkgB" ifadeleri RPM 4.11 / EL7 tarafından okunamaz.
+Requires:       libasound.so.2()(64bit)
+Requires:       libatk-1.0.so.0()(64bit)
+Requires:       libatk-bridge-2.0.so.0()(64bit)
+Requires:       libatspi.so.0()(64bit)
+Requires:       libcairo.so.2()(64bit)
+Requires:       libcups.so.2()(64bit)
+Requires:       libdbus-1.so.3()(64bit)
+Requires:       libexpat.so.1()(64bit)
+Requires:       libfreetype.so.6()(64bit)
+Requires:       libgcc_s.so.1()(64bit)
+Requires:       libgio-2.0.so.0()(64bit)
+Requires:       libglib-2.0.so.0()(64bit)
+Requires:       libgobject-2.0.so.0()(64bit)
+Requires:       libgtk-3.so.0()(64bit)
+Requires:       libnspr4.so()(64bit)
+Requires:       libnss3.so()(64bit)
+Requires:       libnssutil3.so()(64bit)
+Requires:       libpango-1.0.so.0()(64bit)
+Requires:       libsmime3.so()(64bit)
+Requires:       libudev.so.1()(64bit)
+Requires:       libX11.so.6()(64bit)
+Requires:       libXcomposite.so.1()(64bit)
+Requires:       libXdamage.so.1()(64bit)
+Requires:       libXext.so.6()(64bit)
+Requires:       libXfixes.so.3()(64bit)
+Requires:       libXrandr.so.2()(64bit)
+Requires:       libgbm.so.1()(64bit)
+Requires:       libxcb.so.1()(64bit)
+Requires:       libxkbcommon.so.0()(64bit)
+Requires:       libvulkan.so.1()(64bit)
+
+%ifarch aarch64
+# Upstream Linux arşivi x86-64'tür; ARM üzerinde yerel derleme değildir.
+Requires:       box64
+%endif
 
 Provides:       Cromite = %{version}-%{release}
 Provides:       cromite-browser = %{version}-%{release}
@@ -87,7 +103,7 @@ anti-fingerprinting defenses, and hardware-accelerated VA-API video playback.
 
 %prep
 %setup -q -c -T
-tar -xzf %{SOURCE0} || :
+tar -xzf %{SOURCE0}
 
 # Arşiv içeriği tek klasöre (chrome-lin/) açıldıysa kök dizine taşı
 if [ $(ls -1A | wc -l) -eq 1 ] && [ -d * ]; then
@@ -175,7 +191,11 @@ if [ -f "$USER_FLAGS_FILE" ]; then
     done < "$USER_FLAGS_FILE"
 fi
 
-if [ "$(uname -m)" = "aarch64" ] && command -v box64 >/dev/null 2>&1; then
+if [ "$(uname -m)" = "aarch64" ]; then
+    if ! command -v box64 >/dev/null 2>&1; then
+        echo "Cromite x86-64 ikilisini ARM64 üzerinde çalıştırmak için box64 gereklidir." >&2
+        exit 1
+    fi
     exec box64 "${CROMITE_DIR}/chrome" "${DEFAULT_FLAGS[@]}" "$@"
 fi
 
@@ -285,6 +305,10 @@ appstream-util validate-relax --nonet %{buildroot}%{_datadir}/metainfo/org.cromi
 %{_datadir}/pixmaps/cromite.png
 
 %changelog
+* Sun Oct 25 2026 Saffet Yavuz : universish <universish@tutamail.com> - 153.0.8010.37-6
+- EL, AlmaLinux ve x86_64_v2 hedefleri için RPM v4/gzip ve taşınabilir SONAME bağımlılıkları
+- GLIBC alt sınırını ve ARM64 için Box64 gereksinimini açıkça belirt
+
 * Sun Oct 25 2026 Saffet Yavuz : universish <universish@tutamail.com> - 153.0.8010.37-1
 - Upstream v153.0.8010.37-11507ac1061b5ea227806f5e84db5a57df6ccf6a (chrome-lin64.tar.gz) sürümüne güncellendi
 - Digest: sha256:6fe67a4a75a3a5013cc470a3061606c44dc148531c42d8c56317ef0c7f8340cf

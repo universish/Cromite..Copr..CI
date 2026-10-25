@@ -2,55 +2,36 @@
 # Yalnızca GitHub Actions'ta çalıştırılır; RPM spec dosyası bu betiği çağırmaz.
 set -euo pipefail
 
-if [[ $# -ne 1 || ! -s "$1" ]]; then
-    echo "Kullanım: bash scripts/scan_archive.sh <chrome-lin64.tar.gz>" >&2
+if [[ $# -lt 1 || $# -gt 2 || ! -s "$1" ]]; then
+    echo "Kullanım: bash scripts/scan_archive.sh <chrome-lin64.tar.gz> [rapor.json]" >&2
     exit 1
 fi
 
 ARCHIVE="$1"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 SCAN_DIR="$(mktemp -d)"
 trap 'rm -rf -- "$SCAN_DIR"' EXIT
 
 TAR_HASH="$(sha256sum "$ARCHIVE" | awk '{print $1}')"
 echo "🔒 Taranacak arşivin SHA-256 özeti: $TAR_HASH"
-
-if [[ -z "${VT_API_KEY:-}" ]]; then
-    echo "⚠️ VIRUSTOTAL_API_KEY tanımlı değil; VirusTotal sorgusu atlanıyor. ClamAV zorunludur."
-else
-    echo "🔍 VirusTotal üzerinde arşivin SHA-256 özeti sorgulanıyor..."
-    HTTP_CODE="$(curl --silent --show-error --connect-timeout 30 --max-time 120 \
-        --output "$SCAN_DIR/virustotal.json" --write-out '%{http_code}' \
-        --header "x-apikey: ${VT_API_KEY}" \
-        "https://www.virustotal.com/api/v3/files/$TAR_HASH")"
-
-    case "$HTTP_CODE" in
-        200)
-            if ! MALICIOUS="$(jq -er '
-                .data.attributes.last_analysis_stats.malicious
-                | select(type == "number" and . >= 0 and . == floor)
-            ' "$SCAN_DIR/virustotal.json")"; then
-                echo "❌ VirusTotal yanıtı geçerli bir tarama sonucu içermiyor." >&2
-                exit 1
-            fi
-            if [[ "$MALICIOUS" != "0" ]]; then
-                echo "❌ VirusTotal: $MALICIOUS zararlı tespiti. Paketleme durduruldu." >&2
-                exit 1
-            fi
-            echo "✅ VirusTotal: 0 zararlı tespiti."
-            ;;
-        404)
-            echo "ℹ️ Arşiv henüz VirusTotal'de kayıtlı değil; zorunlu ClamAV taramasıyla devam ediliyor."
-            ;;
-        *)
-            echo "❌ VirusTotal sorgusu başarısız (HTTP $HTTP_CODE); paketleme durduruldu." >&2
-            exit 1
-            ;;
-    esac
+if [[ -n "${EXPECTED_SHA256:-}" ]]; then
+    EXPECTED_SHA256="${EXPECTED_SHA256#sha256:}"
+    if [[ ! "$EXPECTED_SHA256" =~ ^[0-9a-f]{64}$ || "$TAR_HASH" != "$EXPECTED_SHA256" ]]; then
+        echo "❌ Upstream SHA-256 özeti eşleşmiyor; tarama ve paketleme durduruldu." >&2
+        exit 1
+    fi
 fi
 
+if [[ -z "${VT_API_KEY:-}" ]]; then
+    echo "❌ VIRUSTOTAL_API_KEY tanımlı değil; VirusTotal doğrulaması zorunludur." >&2
+    exit 1
+fi
+
+echo "🔍 Kabuk örüntüleri, ELF RPATH/RUNPATH ve GLIBC gereksinimleri denetleniyor..."
+python3 "$SCRIPT_DIR/check_payload.py" "$ARCHIVE" "$SCAN_DIR/extracted" "$SCAN_DIR/payload.json"
+MAIN_BIN="$SCAN_DIR/extracted/$(jq -er '.main_binary' "$SCAN_DIR/payload.json")"
+
 echo "🦠 Arşiv içeriği GitHub Actions üzerinde ClamAV ile taranıyor..."
-mkdir "$SCAN_DIR/extracted"
-tar -xzf "$ARCHIVE" -C "$SCAN_DIR/extracted"
 
 # Chromium ikilisi varsayılan 100 MB sınırını aşar. Sınır aşımı sessizce
 # atlanmamalı; taranamayan büyük dosyalar da yayınlamayı durdurmalıdır.
@@ -59,7 +40,7 @@ if clamscan --recursive --infected --alert-macros=yes \
     --max-filesize=2000M --max-scansize=2000M --max-scantime=0 \
     --alert-exceeds-max=yes --fail-if-cvd-older-than=7 \
     "$SCAN_DIR/extracted"; then
-    echo "✅ ClamAV taraması tamamlandı; RPM ve SRPM paketlemesine izin veriliyor."
+    echo "✅ ClamAV taraması tamamlandı."
 else
     SCAN_STATUS=$?
     if [[ "$SCAN_STATUS" -eq 1 ]]; then
@@ -69,3 +50,11 @@ else
     fi
     exit "$SCAN_STATUS"
 fi
+
+python3 "$SCRIPT_DIR/virustotal.py" "$ARCHIVE" "$MAIN_BIN" --report "$SCAN_DIR/virustotal.json"
+if [[ $# -eq 2 ]]; then
+    mkdir -p -- "$(dirname -- "$2")"
+    jq -s '.[0] + {static_checks: "passed", clamav: "passed", virustotal: .[1]}' \
+        "$SCAN_DIR/payload.json" "$SCAN_DIR/virustotal.json" > "$2"
+fi
+echo "✅ Zorunlu statik kontroller ve ClamAV başarılı; VirusTotal sonuçları/uyarıları kaydedildi."

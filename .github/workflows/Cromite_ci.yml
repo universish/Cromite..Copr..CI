@@ -31,6 +31,7 @@ jobs:
       short_commit: ${{ steps.check.outputs.short_commit }}
       tag: ${{ steps.check.outputs.tag }}
       asset_url: ${{ steps.check.outputs.asset_url }}
+      asset_digest: ${{ steps.check.outputs.asset_digest }}
     steps:
       - name: Depoyu İndir
         uses: actions/checkout@v4
@@ -87,6 +88,7 @@ jobs:
           gzip \
           awk \
           sed \
+          binutils \
           python3 \
           clamav \
           clamav-data \
@@ -110,6 +112,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           FORCE_BUILD: ${{ inputs.force_build || 'false' }}
+          UPSTREAM_TAG: ${{ needs.stage-1-check-update.outputs.tag }}
         run: |
           # 1. Spec dosyasını güncel sürümle ayarla
           chmod +x scripts/update_version.sh
@@ -132,12 +135,17 @@ jobs:
       - name: GitHub Actions Üzerinde Zorunlu Virüs Taraması
         env:
           VT_API_KEY: ${{ secrets.VIRUSTOTAL_API_KEY }}
-        run: bash scripts/scan_archive.sh "$HOME/rpmbuild/SOURCES/chrome-lin64.tar.gz"
+          EXPECTED_SHA256: ${{ needs.stage-1-check-update.outputs.asset_digest }}
+        run: bash scripts/scan_archive.sh "$HOME/rpmbuild/SOURCES/chrome-lin64.tar.gz" dist/security-report.json
 
       - name: Taranmış Arşivden RPM ve SRPM Oluştur
         run: |
           SPEC_FILE="Cromite.spec"
           [ ! -f "$SPEC_FILE" ] && SPEC_FILE="cromite.spec"
+
+          # Her upstream sürümünün gerçek ELF gereksinimini SRPM'e yaz.
+          MIN_GLIBC=$(jq -er '.min_glibc | select(test("^[0-9]+(\\.[0-9]+)+$"))' dist/security-report.json)
+          sed -i "s/^%global _min_glibc .*/%global _min_glibc $MIN_GLIBC/" "$SPEC_FILE"
 
           echo "📦 Fedora COPR Spec ile RPM derleniyor..."
           # Spec dosyasındaki tüm bağımlılıkları otomatik olarak kurar
@@ -161,7 +169,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: cromite-rpms-${{ needs.stage-1-check-update.outputs.version }}
-          path: dist/*.rpm
+          path: |
+            dist/*.rpm
+            dist/security-report.json
 
   # ============================================================================
   # 3. AŞAMA: FEDORA COPR DEPOSUNA GÖNDERİM VE YAYINLAMA
@@ -201,6 +211,7 @@ jobs:
         run: |
           # Yalnızca GitHub Actions'taki zorunlu taramadan geçen SRPM gönderilir.
           # COPR spec dosyasında virüs taraması çalıştırılmaz.
+          # --chroot ile sınırlama yok: projedeki tüm etkin chroot'lar derlenir.
           copr-cli build universish/Cromite.. dist/*.src.rpm
 
       - name: Bildirim Gönderimi (Opsiyonel)
