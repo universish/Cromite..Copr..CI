@@ -39,7 +39,15 @@ BuildRequires:  libappstream-glib
 BuildRequires:  appstream-glib
 %endif
 BuildRequires:  clamav
-BuildRequires:  clamav-data
+
+%if 0%{?suse_version}
+# OpenSUSE Tumbleweed/Leap için geçerli paket adını buraya yazın (veya gerekmiyorsa bu satırı tamamen silin)
+BuildRequires: clamav 
+%else
+# Fedora ve diğer RPM tabanlı dağıtımlar için mevcut olanı koruyun
+BuildRequires: clamav-data
+%endif
+
 BuildRequires:  curl
 BuildRequires:  jq
 
