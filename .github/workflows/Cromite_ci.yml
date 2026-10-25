@@ -98,6 +98,11 @@ jobs:
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
+      - name: Update ClamAV Database
+        run: |
+          sed -i 's/^Example/#Example/g' /etc/freshclam.conf || true
+          freshclam
+          
       - name: Spec Güncelleme, Güvenlik Taraması ve RPM Paketleme
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -146,12 +151,6 @@ jobs:
               fi
           fi
 
-          # freshclam yapılandırmasındaki varsayılan engelleyici 'Example' satırını devre dışı bırakır (gerekliyse)
-          sed -i 's/^Example/#Example/g' /etc/freshclam.conf || true
-
-          # ClamAV virüs veritabanını en güncel sürüme çeker
-          freshclam
-          
           echo "🦠 ClamAV ile yerel arşiv taranıyor..."
           mkdir -p /tmp/verify-extract
           tar -xzf ~/rpmbuild/SOURCES/chrome-lin64.tar.gz -C /tmp/verify-extract
