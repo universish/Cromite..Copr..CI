@@ -146,13 +146,12 @@ jobs:
           fi
 
           echo "🦠 ClamAV ile yerel arşiv taranıyor..."
-          freshclam --quiet || true
           mkdir -p /tmp/verify-extract
           tar -xzf ~/rpmbuild/SOURCES/chrome-lin64.tar.gz -C /tmp/verify-extract
-          clamscan --recursive --infected --failifmacs /tmp/verify-extract || { echo "❌ ClamAV zararlı tespit etti!"; exit 1; }
+          clamscan --recursive --infected /tmp/verify-extract || { echo "❌ ClamAV zararlı tespit etti veya tarama çöküşü yaşadı!"; exit 1; }
           rm -rf /tmp/verify-extract
           echo "✅ ClamAV Temiz."
-
+          
           # ====================================================================
           # 5. RPM DERLEME
           # ====================================================================
