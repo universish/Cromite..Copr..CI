@@ -32,20 +32,16 @@ ExclusiveArch:  x86_64 aarch64
 BuildRequires:  tar
 BuildRequires:  gzip
 BuildRequires:  desktop-file-utils
+
 %if 0%{?fedora}
 BuildRequires:  libappstream-glib
 %endif
-%if 0%{?suse_version}
-BuildRequires:  appstream-glib
-%endif
-BuildRequires:  clamav
 
 %if 0%{?suse_version}
-# OpenSUSE Tumbleweed/Leap için geçerli paket adını buraya yazın (veya gerekmiyorsa bu satırı tamamen silin)
-BuildRequires: clamav 
+BuildRequires:  appstream-glib
+BuildRequires:  clamav
 %else
-# Fedora ve diğer RPM tabanlı dağıtımlar için mevcut olanı koruyun
-BuildRequires: clamav-data
+BuildRequires:  clamav-data
 %endif
 
 BuildRequires:  curl
