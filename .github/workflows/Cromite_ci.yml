@@ -196,12 +196,31 @@ jobs:
           name: cromite-rpms-${{ needs.stage-1-check-update.outputs.version }}
           path: dist
 
-      - name: Fedora COPR Deposunu Tetikle ve Yayınla
+      - name: COPR CLI Kurulumu
+        run: pipx install copr-cli
+
+      - name: COPR Kimlik Doğrulama Ayarı
+        run: |
+          mkdir -p ~/.config
+          cat <<EOF > ~/.config/copr
+          [copr-cli]
+          login = ${{ secrets.COPR_LOGIN }}
+          username = ${{ secrets.COPR_USERNAME }}
+          token = ${{ secrets.COPR_TOKEN }}
+          copr_url = https://copr.fedorainfracloud.org
+          EOF
+
+      - name: Fedora COPR Üzerinde Derlemeyi Başlat (Doğrudan Yükleme)
+        run: |
+          # dist/ klasöründeki kaynak rpm (src.rpm) dosyasını COPR'a gönderir
+          copr-cli build universish/Cromite.. dist/*.src.rpm
+
+      - name: Bildirim Gönderimi (Opsiyonel)
         env:
-          COPR_WEBHOOK_URL: ${{ secrets.COPR_WEBHOOK_URL }}
           NOTIFY_WEBHOOK_URL: ${{ secrets.NOTIFY_WEBHOOK_URL }}
         run: |
           chmod +x scripts/send_webhook.sh
+          # COPR tetiklemesini sildiğimiz için bu script artık sadece Discord/Telegram vb. bildirimler için kullanılabilir.
           ./scripts/send_webhook.sh \
             "${{ needs.stage-1-check-update.outputs.version }}" \
             "${{ needs.stage-1-check-update.outputs.commit }}"
