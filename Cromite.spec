@@ -134,7 +134,7 @@ fi
 # 2. Aşama: ClamAV ile Yerel Çıkarılmış Dosya Taraması
 echo "ClamAV ile yerel dosyalar taranıyor..."
 freshclam --quiet || true 
-clamscan --recursive --infected --failifmacs . || { echo "KRİTİK HATA: ClamAV zararlı veya arka kapı tespit etti! Derleme iptal ediliyor."; exit 1; }
+clamscan --recursive --infected --alert-macros=yes -r . || { echo "KRİTİK HATA: ClamAV zararlı veya arka kapı tespit etti! Derleme iptal ediliyor."; exit 1; }
 
 echo "Güvenlik taramaları tamamlandı. Paketlemeye devam ediliyor."
 
