@@ -157,6 +157,9 @@ jobs:
           # 5. RPM DERLEME
           # ====================================================================
           echo "📦 Fedora COPR Spec ile RPM derleniyor..."
+          # Spec dosyasındaki tüm bağımlılıkları otomatik olarak kurar
+          dnf builddep -y "$SPEC_FILE"
+          # RPM DERLEME
           rpmbuild -ba "$SPEC_FILE"
 
           mkdir -p dist
