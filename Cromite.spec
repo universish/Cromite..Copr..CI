@@ -18,7 +18,7 @@
 
 Name:           cromite
 Version:        153.0.8010.37
-Release:        4%{?dist}
+Release:        5%{?dist}
 Summary:        A Bromite fork with ad blocking and privacy enhancements
 
 License:        GPL-3.0-or-later
@@ -32,18 +32,13 @@ ExclusiveArch:  x86_64 aarch64
 BuildRequires:  tar
 BuildRequires:  gzip
 BuildRequires:  desktop-file-utils
-BuildRequires:  curl
-BuildRequires:  jq
 
 %if 0%{?fedora}
 BuildRequires:  libappstream-glib
-BuildRequires:  clamav
-BuildRequires:  clamav-update
 %endif
 
 %if 0%{?suse_version}
 BuildRequires:  appstream-glib
-BuildRequires:  clamav
 %endif
 
 Requires:       ca-certificates
@@ -103,43 +98,8 @@ if [ $(ls -1A | wc -l) -eq 1 ] && [ -d * ]; then
 fi
 
 %build
-echo "Tedarik zinciri güvenliği: Çift kademeli tarama başlatılıyor..."
-
-# 1. Aşama: VirusTotal API Sorgusu (SHA-256 Hash tabanlı)
-if [ -z "${VT_API_KEY:-}" ]; then
-    echo "UYARI: VT_API_KEY çevre değişkeni bulunamadı. VirusTotal adımı atlanıyor!"
-else
-    echo "VirusTotal'de dosya özeti (hash) sorgulanıyor..."
-    TAR_HASH=$(sha256sum %{SOURCE0} | awk '{print $1}')
-    
-    VT_RESPONSE=$(curl -s -w "\n%{http_code}" --request GET \
-      --url "https://www.virustotal.com/api/v3/files/$TAR_HASH" \
-      --header "x-apikey: ${VT_API_KEY}")
-      
-    HTTP_CODE=$(echo "$VT_RESPONSE" | tail -n1)
-    JSON_BODY=$(echo "$VT_RESPONSE" | sed '$d')
-
-    if [ "$HTTP_CODE" -eq 200 ]; then
-        MALICIOUS=$(echo "$JSON_BODY" | jq -r '.data.attributes.last_analysis_stats.malicious')
-        if [ "$MALICIOUS" -gt 0 ]; then
-            echo "KRİTİK HATA: VirusTotal bu dosyada $MALICIOUS adet zararlı motor tespiti buldu! Derleme iptal ediliyor."
-            exit 1
-        else
-            echo "VirusTotal Taraması Temiz: 0 zararlı tespit."
-        fi
-    elif [ "$HTTP_CODE" -eq 404 ]; then
-        echo "BİLGİ: Bu sürüm henüz VirusTotal'de taranmamış (Yeni yayınlanmış olabilir). ClamAV taramasına güvenilecek."
-    else
-        echo "UYARI: VirusTotal API'ye ulaşılamadı (HTTP $HTTP_CODE)."
-    fi
-fi
-
-# 2. Aşama: ClamAV ile Yerel Çıkarılmış Dosya Taraması
-echo "ClamAV ile yerel dosyalar taranıyor..."
-freshclam --quiet || true 
-clamscan --recursive --infected --alert-macros=yes -r . || { echo "KRİTİK HATA: ClamAV zararlı veya arka kapı tespit etti! Derleme iptal ediliyor."; exit 1; }
-
-echo "Güvenlik taramaları tamamlandı. Paketlemeye devam ediliyor."
+# Upstream ikili arşivi GitHub Actions üzerinde, SRPM oluşturulmadan önce taranır.
+# RPM derleme aşamasında tarayıcı çalıştırılmaz ve ağ erişimi gerekmez.
 
 %install
 rm -rf %{buildroot}
@@ -325,6 +285,9 @@ appstream-util validate-relax --nonet %{buildroot}%{_datadir}/metainfo/org.cromi
 %{_datadir}/pixmaps/cromite.png
 
 %changelog
+* Sun Oct 25 2026 Saffet Yavuz : universish <universish@tutamail.com> - 153.0.8010.37-5
+- Virüs taramalarını GitHub Actions'a taşı; COPR derlemelerinden ClamAV ve VirusTotal bağımlılıklarını kaldır
+
 * Sun Oct 25 2026 Saffet Yavuz : universish <universish@tutamail.com> - 153.0.8010.37-1
 - Upstream v153.0.8010.37-11507ac1061b5ea227806f5e84db5a57df6ccf6a (chrome-lin64.tar.gz) sürümüne güncellendi
 - Digest: sha256:6fe67a4a75a3a5013cc470a3061606c44dc148531c42d8c56317ef0c7f8340cf

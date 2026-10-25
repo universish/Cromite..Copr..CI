@@ -24,10 +24,10 @@ Cromite..Copr..CI/
 │   └── Makefile                                    # Makefile# Fedora COPR 'make_srpm' script(compatible withdnf and zypper)
 ├── .github/
 │   └── workflows/
-│       ├── build-rpm.yml                           # Fedora (44, Rawhide) and openSUSE (Tumbleweed, Leap 16.0) CI build with
-│       └── check-update-and-webhook.yml            # Every 6 hours uazo/cromite/releases control and COPR/Webhook trigger
+│       └── Cromite_ci.yml                         # Upstream check, GitHub Actions virus scan, RPM build and COPR upload
 ├── scripts/
-│   ├── send_webhook.sh                             # universish/Cromite... COPR webhook and notification sender
+│   ├── scan_archive.sh                             # Mandatory ClamAV scan and optional VirusTotal hash lookup in GitHub Actions
+│   ├── send_webhook.sh                             # Optional notification sender
 │   └── update_version.sh                           # chrome-Git rules that exclude the output of the scriptthat checks the lin64.tar.gz
 ├── .gitignore                                      # RPM build version and updates cromite.spec
 ├── cromite.desktop                                 # Desktop startup file (Turkish & English)
@@ -46,29 +46,21 @@ Cromite..Copr..CI/
 
 - `openSUSE-leap-16.0-x86_64` , `openSUSE-leap-16.0-aarch64` 
 
-**2.** In the **Packages -> New Package** (or **Edit** for an existing `cromite` package) section, enter the following information: **• Package name:** `cromite` 
+**2.** GitHub Actions uploads the scanned source RPM directly with `copr-cli build universish/Cromite.. dist/*.src.rpm`. Disable automatic SCM rebuilds and COPR build webhooks for this package: those routes download upstream files outside the GitHub Actions scan gate. COPR only rebuilds and publishes the uploaded SRPM; it does not run ClamAV, FreshClam, or VirusTotal.
 
-- **Choose how to build SRPM:** `SCM` 
+## **2. GitHub Actions (** **`universish/Cromite..Copr..CI` ) Secrets**
 
-- **SCM type:** `git` 
+Under **Settings -> Secrets and variables -> Actions**, configure:
 
-- **Clone URL:** `https://github.com/universish/Cromite..Copr..CI.git` 
+| Secret | Purpose |
+| :--- | :--- |
+| `COPR_LOGIN`, `COPR_USERNAME`, `COPR_TOKEN` | COPR API credentials for direct SRPM upload |
+| `VIRUSTOTAL_API_KEY` | Optional VirusTotal SHA-256 lookup |
+| `NOTIFY_WEBHOOK_URL` | Optional notification webhook |
 
-- **Committish:** `main` 
+The Fedora container in stage 2 runs on the GitHub Actions VM. It downloads the upstream archive, updates the ClamAV database, and scans the extracted files with `scripts/scan_archive.sh` before creating RPMs and the SRPM from that same archive. A database update failure, scan error, detection, or scan size limit blocks packaging and COPR upload. The scanner allows files up to 2000 MB so the Chromium executable is not silently skipped by the default size limit.
 
-- **Path to .spec file:** `cromite.spec` 
-
-- **Build SRPM with:** `make_srpm` 
-
-- **Auto-rebuild:** Enabled ( `On` ) 
-
-**3.** Copy the **Custom Webhook URL** link ( `https://copr.fedorainfracloud.org/webhooks/custom/<id>/<uuid>/  cromite/` ) from **the Settings -> Integrations** page. 
-
-## **2. GitHub Actions (** **`universish/Cromite..Copr..CI` ) Secrets** 
-
-In your <u>universish/Cromite..Copr..CI repository, under</u> **Settings -> Secrets and variables - > Actions,** add the following two Secret values: 
-
-Secret Name Description `COPR_WEBHOOK_URL` <u>universish/Cromite..</u> **<u>Settings</u> ->** Custom trigger URL under " **Integrations"** `NOTIFY_WEBHOOK_URL` Discord, Slack, Gotify, or JSON Webhook address to which a notification will be sent when a new version of `chrome-` **3. Installation Commands** `lin64.tar.gz` is detected 
+VirusTotal is an optional hash lookup, not a file upload. A missing API key or HTTP 404 is reported and the mandatory ClamAV scan still runs. With a configured key, a detection, invalid response, or API/network error blocks packaging. Run the workflow manually with **force_build = true** to rebuild the current upstream version after applying these CI changes.
 
 ## **3. Installation Commands**
 
@@ -120,10 +112,10 @@ Cromite..Copr..CI/
 │   └── Makefile                                    # Fedora COPR 'make_srpm' betiği (dnf ve zypper uyumlu)
 ├── .github/
 │   └── workflows/
-│       ├── build-rpm.yml                           # Fedora (44, Rawhide) ve openSUSE (Tumbleweed, Leap 16.0) CI derlemesi
-│       └── check-update-and-webhook.yml            # 6 saatte bir uazo/cromite/releases kontrolü ve COPR/Webhook tetikleyici
+│       └── Cromite_ci.yml                         # Sürüm kontrolü, GitHub Actions virüs taraması, RPM ve COPR gönderimi
 ├── scripts/
-│   ├── send_webhook.sh                             # universish/Cromite.. COPR webhook ve bildirim gönderici
+│   ├── scan_archive.sh                             # GitHub Actions'ta zorunlu ClamAV ve isteğe bağlı VirusTotal sorgusu
+│   ├── send_webhook.sh                             # İsteğe bağlı bildirim gönderici
 │   └── update_version.sh                           # chrome-lin64.tar.gz sürümünü denetleyip cromite.spec güncelleyen betik
 ├── .gitignore                                      # RPM derleme çıktılarını hariç tutan Git kuralları
 ├── cromite.desktop                                 # Masaüstü başlatıcı dosyası (Türkçe & İngilizce)
@@ -141,25 +133,21 @@ Cromite..Copr..CI/
    - `fedora-rawhide-x86_64`, `fedora-rawhide-aarch64`
    - `opensuse-tumbleweed-x86_64`, `opensuse-tumbleweed-aarch64`
    - `opensuse-leap-16.0-x86_64`, `opensuse-leap-16.0-aarch64`
-2. **Packages -> New Package** (veya mevcut `cromite` paketinde **Edit**) bölümünde şu bilgileri girin:
-   - **Package name:** `cromite`
-   - **Choose how to build SRPM:** `SCM`
-   - **SCM type:** `git`
-   - **Clone URL:** `https://github.com/universish/Cromite..Copr..CI.git`
-   - **Committish:** `main`
-   - **Path to .spec file:** `cromite.spec`
-   - **Build SRPM with:** `make_srpm`
-   - **Auto-rebuild:** Etkin (`On`)
-3. **Settings -> Integrations** sayfasındaki **Custom Webhook URL** bağlantısını (`https://copr.fedorainfracloud.org/webhooks/custom/<id>/<uuid>/cromite/`) kopyalayın.
+2. GitHub Actions, taranmış kaynak RPM'i doğrudan `copr-cli build universish/Cromite.. dist/*.src.rpm` ile yükler. Bu paket için otomatik SCM derlemelerini ve COPR derleme webhook'larını kapatın; bunlar GitHub Actions tarama adımının dışında upstream arşivini yeniden indirir. COPR yalnızca yüklenen SRPM'i derler ve yayınlar; ClamAV, FreshClam veya VirusTotal çalıştırmaz.
 
 ## 2. GitHub Actions (`universish/Cromite..Copr..CI`) Sırları
 
-[universish/Cromite..Copr..CI](https://github.com/universish/Cromite..Copr..CI) deponuzda **Settings -> Secrets and variables -> Actions** altına şu iki Secret değerini ekleyin:
+[universish/Cromite..Copr..CI](https://github.com/universish/Cromite..Copr..CI) deponuzda **Settings -> Secrets and variables -> Actions** altına şu Secret değerlerini ekleyin:
 
 | Secret Adı | Açıklama |
 | :--- | :--- |
-| `COPR_WEBHOOK_URL` | [universish/Cromite..](https://copr.fedorainfracloud.org/coprs/universish/Cromite../) **Settings -> Integrations** altındaki özel tetikleme URL'si |
+| `COPR_LOGIN`, `COPR_USERNAME`, `COPR_TOKEN` | SRPM'i doğrudan yüklemek için COPR API kimlik bilgileri |
+| `VIRUSTOTAL_API_KEY` | İsteğe bağlı VirusTotal SHA-256 sorgusu |
 | `NOTIFY_WEBHOOK_URL` | Yeni `chrome-lin64.tar.gz` sürümü algılandığında bildirim gönderilecek Discord, Slack, Gotify veya JSON Webhook adresi |
+
+İkinci aşamadaki Fedora konteyneri GitHub Actions sanal makinesinde çalışır. Upstream arşivi indirilir, ClamAV veritabanı güncellenir ve çıkarılan dosyalar `scripts/scan_archive.sh` ile taranır. Ancak tarama başarılı olduktan sonra aynı arşivden RPM ve SRPM oluşturulur. Veritabanı güncelleme hatası, tarama hatası, zararlı tespiti veya tarama boyutu sınırının aşılması paketlemeyi ve COPR'a gönderimi durdurur. Chromium ikilisinin varsayılan boyut sınırında sessizce atlanmaması için dosya sınırı 2000 MB olarak ayarlanmıştır.
+
+VirusTotal isteğe bağlı bir dosya özeti sorgusudur; dosya yüklemez. API anahtarı yoksa veya HTTP 404 dönerse bu durum bildirilir ve zorunlu ClamAV taraması yapılır. Anahtar tanımlıyken zararlı tespiti, geçersiz yanıt veya API/ağ hatası paketlemeyi durdurur. Bu CI değişikliklerini uyguladıktan sonra mevcut upstream sürümünü yeniden paketlemek için iş akışını **force_build = true** ile elle çalıştırın.
 
 ## 3. Kurulum Komutları
 

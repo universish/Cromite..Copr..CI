@@ -58,15 +58,19 @@ jobs:
           fi
 
   # ============================================================================
-  # 2. AŞAMA: ARŞİVİN İNDİRİLİP AÇILMASI VE RPM SPEC İLE YENİDEN PAKETLENMESİ
+  # 2. AŞAMA: GITHUB ACTIONS ÜZERİNDE İNDİRME, VİRÜS TARAMASI VE RPM PAKETLEME
   # ============================================================================
   stage-2-repackage-rpm:
-    name: "2. Aşama: İndirme ve RPM Paketleme"
+    name: "2. Aşama: GitHub Actions Virüs Taraması ve RPM Paketleme"
     needs: stage-1-check-update
     if: needs.stage-1-check-update.outputs.updated == 'true'
     runs-on: ubuntu-latest
     container:
+      # Bu Fedora konteyneri GitHub Actions sanal makinesinde çalışır.
       image: registry.fedoraproject.org/fedora:44
+    defaults:
+      run:
+        shell: bash
     steps:
       - name: Fedora RPM ve Güvenlik Araçlarını Kur
         run: |
@@ -83,6 +87,7 @@ jobs:
           gzip \
           awk \
           sed \
+          python3 \
           clamav \
           clamav-data \
           clamav-update
@@ -98,23 +103,17 @@ jobs:
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
-      - name: Update ClamAV Database
-        run: |
-          sed -i 's/^Example/#Example/g' /etc/freshclam.conf || true
-          freshclam
-          
-      - name: Spec Güncelleme, Güvenlik Taraması ve RPM Paketleme
+      - name: Tarama Kapısının Hata Senaryolarını Doğrula
+        run: python3 -B -m unittest discover -s tests -v
+
+      - name: Spec Güncelleme ve Upstream Arşivini İndirme
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VT_API_KEY: ${{ secrets.VIRUSTOTAL_API_KEY }}
           FORCE_BUILD: ${{ inputs.force_build || 'false' }}
         run: |
           # 1. Spec dosyasını güncel sürümle ayarla
           chmod +x scripts/update_version.sh
           ./scripts/update_version.sh
-
-          SPEC_FILE="Cromite.spec"
-          [ ! -f "$SPEC_FILE" ] && SPEC_FILE="cromite.spec"
 
           # 2. RPM Ağacını oluştur ve dosyaları kopyala
           rpmdev-setuptree
@@ -125,42 +124,21 @@ jobs:
           echo "📥 İndiriliyor: ${{ needs.stage-1-check-update.outputs.asset_url }}"
           curl -fL --retry 3 -o ~/rpmbuild/SOURCES/chrome-lin64.tar.gz "${{ needs.stage-1-check-update.outputs.asset_url }}"
 
-          # ====================================================================
-          # 4. TEDARİK ZİNCİRİ GÜVENLİK TARAMASI (VirusTotal + ClamAV)
-          # ====================================================================
-          echo "🔒 Güvenlik taramaları başlatılıyor..."
-          
-          if [ -z "${VT_API_KEY:-}" ]; then
-              echo "⚠️ UYARI: VT_API_KEY bulunamadı. VirusTotal atlanıyor."
-          else
-              echo "🔍 VirusTotal Hash Sorgusu..."
-              TAR_HASH=$(sha256sum ~/rpmbuild/SOURCES/chrome-lin64.tar.gz | awk '{print $1}')
-              VT_RESPONSE=$(curl -s -w "\n%{http_code}" --request GET \
-                --url "https://www.virustotal.com/api/v3/files/$TAR_HASH" \
-                --header "x-apikey: ${VT_API_KEY}")
-              HTTP_CODE=$(echo "$VT_RESPONSE" | tail -n1)
-              JSON_BODY=$(echo "$VT_RESPONSE" | sed '$d')
-              if [ "$HTTP_CODE" -eq 200 ]; then
-                  MALICIOUS=$(echo "$JSON_BODY" | jq -r '.data.attributes.last_analysis_stats.malicious')
-                  if [ "$MALICIOUS" -gt 0 ]; then
-                      echo "❌ KRİTİK HATA: VirusTotal zararlı buldu! Derleme iptal ediliyor."
-                      exit 1
-                  else
-                      echo "✅ VirusTotal Temiz."
-                  fi
-              fi
-          fi
+      - name: GitHub Actions Üzerinde ClamAV Veritabanını Güncelle
+        run: |
+          sed -i 's/^Example/#Example/g' /etc/freshclam.conf
+          freshclam --stdout
 
-          echo "🦠 ClamAV ile yerel arşiv taranıyor..."
-          mkdir -p /tmp/verify-extract
-          tar -xzf ~/rpmbuild/SOURCES/chrome-lin64.tar.gz -C /tmp/verify-extract
-          clamscan --recursive --infected /tmp/verify-extract || { echo "❌ ClamAV zararlı tespit etti veya tarama çöküşü yaşadı!"; exit 1; }
-          rm -rf /tmp/verify-extract
-          echo "✅ ClamAV Temiz."
-          
-          # ====================================================================
-          # 5. RPM DERLEME
-          # ====================================================================
+      - name: GitHub Actions Üzerinde Zorunlu Virüs Taraması
+        env:
+          VT_API_KEY: ${{ secrets.VIRUSTOTAL_API_KEY }}
+        run: bash scripts/scan_archive.sh "$HOME/rpmbuild/SOURCES/chrome-lin64.tar.gz"
+
+      - name: Taranmış Arşivden RPM ve SRPM Oluştur
+        run: |
+          SPEC_FILE="Cromite.spec"
+          [ ! -f "$SPEC_FILE" ] && SPEC_FILE="cromite.spec"
+
           echo "📦 Fedora COPR Spec ile RPM derleniyor..."
           # Spec dosyasındaki tüm bağımlılıkları otomatik olarak kurar
           dnf builddep -y "$SPEC_FILE"
@@ -221,7 +199,8 @@ jobs:
 
       - name: Fedora COPR Üzerinde Derlemeyi Başlat (Doğrudan Yükleme)
         run: |
-          # dist/ klasöründeki kaynak rpm (src.rpm) dosyasını COPR'a gönderir
+          # Yalnızca GitHub Actions'taki zorunlu taramadan geçen SRPM gönderilir.
+          # COPR spec dosyasında virüs taraması çalıştırılmaz.
           copr-cli build universish/Cromite.. dist/*.src.rpm
 
       - name: Bildirim Gönderimi (Opsiyonel)
