@@ -49,6 +49,8 @@ Cromite..Copr..CI/
 
 **2.** GitHub Actions uploads the scanned source RPM directly with `copr-cli build universish/Cromite.. dist/*.src.rpm`. Disable automatic SCM rebuilds and COPR build webhooks for this package: those routes download upstream files outside the GitHub Actions scan gate. COPR only rebuilds and publishes the uploaded SRPM; it does not run ClamAV, FreshClam, or VirusTotal.
 
+The workflow checks for upstream updates daily at 16:45 Europe/Istanbul (13:45 UTC).
+
 ## **2. GitHub Actions (** **`universish/Cromite..Copr..CI` ) Secrets**
 
 Under **Settings -> Secrets and variables -> Actions**, configure:
@@ -56,12 +58,12 @@ Under **Settings -> Secrets and variables -> Actions**, configure:
 | Secret | Purpose |
 | :--- | :--- |
 | `COPR_LOGIN`, `COPR_USERNAME`, `COPR_TOKEN` | COPR API credentials for direct SRPM upload |
-| `VIRUSTOTAL_API_KEY` | Required VirusTotal checks of the archive and main Cromite ELF |
+| `VIRUSTOTAL_API_KEY` | Optional VirusTotal SHA-256 lookups for the archive and extracted files |
 | `NOTIFY_WEBHOOK_URL` | Optional notification webhook |
 
 The Fedora container in stage 2 runs on the GitHub Actions VM. It verifies the upstream digest when available, inspects shell scripts and ELF metadata, updates ClamAV, and scans the extracted files with `scripts/scan_archive.sh` before creating RPMs and the SRPM from that same archive. A database update failure, scan error, detection, or scan size limit blocks packaging and COPR upload. The scanner allows files up to 2000 MiB so the Chromium executable is not silently skipped by the default size limit.
 
-VirusTotal checks both SHA-256 hashes. Unknown public upstream files within the upload limit are submitted and a completed analysis is required. A missing key, detection, invalid response, API/network error, or analysis timeout blocks packaging. As selected by the user, an unknown file above 650 MiB produces a warning and an `unavailable_size_limit` report entry; packaging may proceed only after the mandatory ClamAV and static checks pass. The file is never labeled clean based on that warning. See the [security policy and target details](docs/compatibility.md). Run the workflow manually with **force_build = true** to rebuild the current upstream version after applying these CI changes.
+VirusTotal looks up the archive and every extracted regular file by SHA-256. If the compressed upstream archive is unknown and within the 650 MiB upload limit, CI uploads it and waits for analysis. This bundle result does not certify each inner file. Duplicate contents share one hash lookup. The public API rate is respected; all unique hashes are queried by default, which can take substantial time. Missing credentials, API/network or upload errors, unknown hashes, and optional `VT_MAX_REQUESTS` limits produce warnings and a partial report; mandatory ClamAV and static checks still decide whether packaging can continue. A known malicious VirusTotal result blocks packaging. See the [security policy and target details](docs/compatibility.md). Run the workflow manually with **force_build = true** to rebuild the current upstream version after applying these CI changes.
 
 ## **3. Installation Commands**
 
@@ -139,6 +141,8 @@ Cromite..Copr..CI/
    - `opensuse-leap-16.0-x86_64`, `opensuse-leap-16.0-aarch64`
 2. GitHub Actions, taranmış kaynak RPM'i doğrudan `copr-cli build universish/Cromite.. dist/*.src.rpm` ile yükler. Bu paket için otomatik SCM derlemelerini ve COPR derleme webhook'larını kapatın; bunlar GitHub Actions tarama adımının dışında upstream arşivini yeniden indirir. COPR yalnızca yüklenen SRPM'i derler ve yayınlar; ClamAV, FreshClam veya VirusTotal çalıştırmaz.
 
+İş akışı yeni upstream sürümünü her gün Türkiye saatiyle 16:45'te (13:45 UTC) kontrol eder.
+
 ## 2. GitHub Actions (`universish/Cromite..Copr..CI`) Sırları
 
 [universish/Cromite..Copr..CI](https://github.com/universish/Cromite..Copr..CI) deponuzda **Settings -> Secrets and variables -> Actions** altına şu Secret değerlerini ekleyin:
@@ -146,12 +150,12 @@ Cromite..Copr..CI/
 | Secret Adı | Açıklama |
 | :--- | :--- |
 | `COPR_LOGIN`, `COPR_USERNAME`, `COPR_TOKEN` | SRPM'i doğrudan yüklemek için COPR API kimlik bilgileri |
-| `VIRUSTOTAL_API_KEY` | Arşiv ve ana Cromite ELF dosyasının zorunlu VirusTotal kontrolü |
+| `VIRUSTOTAL_API_KEY` | Arşiv ve çıkarılan dosyalar için isteğe bağlı VirusTotal SHA-256 sorguları |
 | `NOTIFY_WEBHOOK_URL` | Yeni `chrome-lin64.tar.gz` sürümü algılandığında bildirim gönderilecek Discord, Slack, Gotify veya JSON Webhook adresi |
 
 İkinci aşamadaki Fedora konteyneri GitHub Actions sanal makinesinde çalışır. Varsa upstream SHA-256 özeti doğrulanır, kabuk betikleri ve ELF metadata denetlenir, ClamAV güncellenir ve çıkarılan dosyalar `scripts/scan_archive.sh` ile taranır. Güvenlik politikası karşılandıktan sonra aynı arşivden RPM ve SRPM oluşturulur. Veritabanı güncelleme hatası, tarama hatası, zararlı tespiti veya tarama boyutu sınırının aşılması paketlemeyi ve COPR'a gönderimi durdurur. Chromium ikilisinin varsayılan boyut sınırında sessizce atlanmaması için dosya sınırı 2000 MiB olarak ayarlanmıştır.
 
-VirusTotal hem arşivin hem ana ikilinin dosya özetini sorgular. Bilinmeyen ve yükleme sınırına uyan herkese açık upstream dosyaları yüklenir ve tamamlanmış analiz beklenir. Anahtar eksikliği, zararlı tespiti, geçersiz yanıt, API/ağ hatası veya analiz zaman aşımı paketlemeyi durdurur. Kullanıcının seçtiği istisna: VirusTotal'de bilinmeyen 650 MiB üzerindeki dosyada uyarı ve `unavailable_size_limit` kaydı oluşturulur; zorunlu ClamAV ve statik kontroller başarılıysa paketleme devam eder. Bu durum “temiz” sonucu olarak sunulmaz. Ayrıntılar [uyumluluk ve güvenlik kılavuzundadır](docs/compatibility.md). Bu değişikliklerden sonra mevcut upstream sürümünü yeniden paketlemek için iş akışını **force_build = true** ile çalıştırın.
+VirusTotal, arşivin ve çıkarılan her normal dosyanın SHA-256 özetini ayrı sorgular. Sıkıştırılmış upstream arşivinin özeti bilinmiyorsa ve arşiv 650 MiB sınırının altındaysa dosya yüklenir ve analizi beklenir. Arşiv sonucu içindeki her dosyanın ayrı tarandığını kanıtlamaz. Aynı içeriğe sahip dosyalar tek özet sorgusu kullanır. Bilinmeyen özet, dosyanın temiz olduğu anlamına gelmez. Açık API hızına uyulur ve varsayılan olarak tüm benzersiz özetler sorgulanır; dosya sayısına göre bu uzun sürebilir. Anahtar eksikliği, API/ağ veya yükleme hatası, bilinmeyen özet ve isteğe bağlı `VT_MAX_REQUESTS` sınırı uyarı ile kısmi rapor oluşturur; zorunlu ClamAV ve statik kontroller başarılıysa paketleme devam eder. VirusTotal'de bilinen zararlı tespiti paketlemeyi durdurur. Ayrıntılar [uyumluluk ve güvenlik kılavuzundadır](docs/compatibility.md). Bu değişikliklerden sonra mevcut upstream sürümünü yeniden paketlemek için iş akışını **force_build = true** ile çalıştırın.
 
 ## 3. Kurulum Komutları
 

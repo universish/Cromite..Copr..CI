@@ -22,14 +22,8 @@ if [[ -n "${EXPECTED_SHA256:-}" ]]; then
     fi
 fi
 
-if [[ -z "${VT_API_KEY:-}" ]]; then
-    echo "❌ VIRUSTOTAL_API_KEY tanımlı değil; VirusTotal doğrulaması zorunludur." >&2
-    exit 1
-fi
-
 echo "🔍 Kabuk örüntüleri, ELF RPATH/RUNPATH ve GLIBC gereksinimleri denetleniyor..."
 python3 "$SCRIPT_DIR/check_payload.py" "$ARCHIVE" "$SCAN_DIR/extracted" "$SCAN_DIR/payload.json"
-MAIN_BIN="$SCAN_DIR/extracted/$(jq -er '.main_binary' "$SCAN_DIR/payload.json")"
 
 echo "🦠 Arşiv içeriği GitHub Actions üzerinde ClamAV ile taranıyor..."
 
@@ -51,7 +45,7 @@ else
     exit "$SCAN_STATUS"
 fi
 
-python3 "$SCRIPT_DIR/virustotal.py" "$ARCHIVE" "$MAIN_BIN" --report "$SCAN_DIR/virustotal.json"
+python3 "$SCRIPT_DIR/virustotal.py" "$ARCHIVE" "$SCAN_DIR/extracted" --report "$SCAN_DIR/virustotal.json"
 if [[ $# -eq 2 ]]; then
     mkdir -p -- "$(dirname -- "$2")"
     jq -s '.[0] + {static_checks: "passed", clamav: "passed", virustotal: .[1]}' \

@@ -2,10 +2,8 @@ name: Cromite Upstream Kontrol, RPM Paketleme ve Fedora COPR Yayınlama CI
 
 on:
   schedule:
-    # uazo'nun yerel saat dilimi (İtalya - Europe/Rome):
-    # Öğle arası (~12:30 CEST / 11:30 CET) ve İş çıkışı (~18:30 CEST / 17:30 CET)
-    - cron: '30 10 * * *'
-    - cron: '30 16 * * *'
+    # Her gün 16:45 Türkiye saati (Europe/Istanbul = UTC+3).
+    - cron: '45 13 * * *'
   workflow_dispatch:
     inputs:
       force_build:

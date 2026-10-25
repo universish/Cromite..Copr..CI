@@ -77,13 +77,16 @@ printf '%s' "$VT_HTTP_CODE"
         report = json.loads(self.report.read_text())
         self.assertEqual(report["clamav"], "passed")
         self.assertEqual(report["archive_sha256"], digest)
-        self.assertEqual(len(report["virustotal"]), 2)
+        self.assertEqual(len(report["virustotal"]["files"]), 2)
+        self.assertEqual(report["virustotal"]["status"], "complete")
         self.assertTrue(self.marker.exists())
 
-    def test_missing_api_key_blocks_packaging(self):
+    def test_missing_api_key_warns_and_allows_packaging(self):
         result = self.run_scan(VT_API_KEY="")
-        self.assertNotEqual(result.returncode, 0)
-        self.assertFalse(self.report.exists())
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("::warning::", result.stdout)
+        report = json.loads(self.report.read_text())
+        self.assertEqual(report["virustotal"]["counts"]["skipped_no_key"], 2)
 
     def test_clamav_detection_and_errors_block_packaging(self):
         for status in ("1", "2"):
@@ -99,18 +102,23 @@ printf '%s' "$VT_HTTP_CODE"
         self.assertNotEqual(result.returncode, 0)
         self.assertFalse(self.report.exists())
 
-    def test_api_and_network_errors_block_packaging(self):
+    def test_api_and_network_errors_warn_and_allow_packaging(self):
         for code in ("401", "403", "429", "500"):
             with self.subTest(code=code):
-                self.assertNotEqual(self.run_scan(VT_HTTP_CODE=code).returncode, 0)
-        self.assertNotEqual(self.run_scan(CURL_STATUS="28").returncode, 0)
-        self.assertFalse(self.report.exists())
+                result = self.run_scan(VT_HTTP_CODE=code)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn("::warning::", result.stdout)
+        result = self.run_scan(CURL_STATUS="28")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(self.report.read_text())["virustotal"]["status"], "partial")
 
-    def test_incomplete_and_malformed_results_block_packaging(self):
+    def test_incomplete_and_malformed_results_warn_and_allow_packaging(self):
         for body in ("{}", "not JSON", json.dumps({"data": {"attributes": {"last_analysis_stats": {}}}})):
             with self.subTest(body=body):
-                self.assertNotEqual(self.run_scan(VT_JSON=body).returncode, 0)
-                self.assertFalse(self.report.exists())
+                result = self.run_scan(VT_JSON=body)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn("::warning::", result.stdout)
+                self.assertEqual(json.loads(self.report.read_text())["virustotal"]["status"], "partial")
 
     def test_upstream_digest_mismatch_blocks_before_scanning(self):
         self.assertNotEqual(self.run_scan(EXPECTED_SHA256="0" * 64).returncode, 0)
