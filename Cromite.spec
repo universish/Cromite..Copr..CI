@@ -32,20 +32,19 @@ ExclusiveArch:  x86_64 aarch64
 BuildRequires:  tar
 BuildRequires:  gzip
 BuildRequires:  desktop-file-utils
+BuildRequires:  curl
+BuildRequires:  jq
 
 %if 0%{?fedora}
 BuildRequires:  libappstream-glib
+BuildRequires:  clamav
+BuildRequires:  clamav-update
 %endif
 
 %if 0%{?suse_version}
 BuildRequires:  appstream-glib
 BuildRequires:  clamav
-%else
-BuildRequires:  clamav-data
 %endif
-
-BuildRequires:  curl
-BuildRequires:  jq
 
 Requires:       ca-certificates
 Requires:       hicolor-icon-theme
