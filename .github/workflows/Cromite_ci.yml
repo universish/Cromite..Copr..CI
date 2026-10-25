@@ -71,20 +71,21 @@ jobs:
       - name: Fedora RPM ve Güvenlik Araçlarını Kur
         run: |
           dnf -y install \
-            rpm-build \
-            rpmdevtools \
-            dnf-plugins-core \
-            desktop-file-utils \
-            libappstream-glib \
-            git \
-            curl \
-            jq \
-            tar \
-            gzip \
-            awk \
-            sed \
-            clamav \
-            clamav-data
+          rpm-build \
+          rpmdevtools \
+          dnf-plugins-core \
+          desktop-file-utils \
+          libappstream-glib \
+          git \
+          curl \
+          jq \
+          tar \
+          gzip \
+          awk \
+          sed \
+          clamav \
+          clamav-data \
+          clamav-update
 
       - name: Depoyu İndir
         uses: actions/checkout@v4
